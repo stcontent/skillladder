@@ -1,747 +1,766 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QuickBill</title>
+    <!-- 1. Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 2. Signature Pad Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/signature_pad/1.5.3/signature_pad.min.js"></script>
+    <!-- 3. Google Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-      /* Simple CSS for loading spinner */
-      .loader {
-        border: 4px solid #f3f3f3;
-        border-top: 4px solid #3498db;
-        border-radius: 50%;
-        width: 30px;
-        height: 30px;
-        animation: spin 1s linear infinite;
-      }
-      @keyframes spin {
-        0% {
-          transform: rotate(0deg);
+        /* Basic styling */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
         }
-        100% {
-          transform: rotate(360deg);
+        /* Hide all views by default */
+        .view {
+            display: none;
         }
-      }
-      .hidden {
-        display: none;
-      }
+        /* Custom styles for signature pad */
+        .signature-pad-container {
+            border: 2px dashed #cbd5e1;
+            border-radius: 0.5rem;
+            position: relative;
+        }
+        #signature-canvas {
+            width: 100%;
+            height: 200px;
+            cursor: crosshair;
+        }
+        /* Simple loader */
+        #loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* Message box */
+        #message-box {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 20px;
+            border-radius: 0.5rem;
+            color: white;
+            font-weight: 500;
+            z-index: 10000;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+            max-width: 90%;
+            text-align: center;
+        }
+        #message-box.show {
+            opacity: 1;
+        }
     </style>
-  </head>
-  <body class="bg-gray-100 font-sans antialiased">
-    <div
-      class="container mx-auto max-w-2xl p-4 min-h-screen flex flex-col items-center justify-center"
-    >
-      <div
-        class="w-full bg-white p-8 rounded-lg shadow-xl"
-        id="app-container"
-      >
-        <h1 class="text-3xl font-bold text-center text-blue-600 mb-6">
-          QuickBill
-        </h1>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
 
-        <!-- Message Bar -->
-        <div
-          id="message-bar"
-          class="p-3 rounded-md mb-4 text-center hidden"
-        ></div>
+    <div class="w-full max-w-lg">
+        <h1 class="text-4xl font-bold text-center text-blue-600 mb-8">QuickBill</h1>
 
-        <!-- Loading Indicator -->
-        <div id="loading" class="flex justify-center my-4 hidden">
-          <div class="loader"></div>
+        <!-- ==== AUTH VIEW ==== -->
+        <div id="auth-view" class="view bg-white p-8 rounded-lg shadow-xl space-y-4">
+            <h2 class="text-2xl font-semibold text-center text-gray-700">Welcome</h2>
+            <p class="text-center text-gray-500">Please sign up or log in to continue.</p>
+            <button id="show-signup-btn" class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition duration-300">Sign Up</button>
+            <button id="show-login-btn" class="w-full bg-gray-600 text-white py-3 rounded-lg font-semibold hover:bg-gray-700 transition duration-300">Log In</button>
         </div>
 
-        <!-- Auth View -->
-        <div id="auth-view">
-          <div id="auth-buttons" class="flex gap-4">
-            <button
-              onclick="app.showAuthForm('signup')"
-              class="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg shadow"
-            >
-              Sign Up
-            </button>
-            <button
-              onclick="app.showAuthForm('login')"
-              class="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg shadow"
-            >
-              Login
-            </button>
-          </div>
-
-          <form id="auth-form" class="space-y-4 mt-6 hidden">
-            <h2 id="auth-title" class="text-2xl font-semibold text-center"></h2>
-            <div>
-              <label for="email" class="block text-sm font-medium text-gray-700"
-                >Email</label
-              >
-              <input
-                type="email"
-                id="email"
-                required
-                class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              />
+        <!-- ==== SIGNUP VIEW ==== -->
+        <div id="signup-view" class="view bg-white p-8 rounded-lg shadow-xl space-y-4">
+            <h2 class="text-2xl font-semibold text-gray-700">Create Account</h2>
+            <div id="signup-step-1">
+                <label for="signup-email" class="block text-sm font-medium text-gray-600">Email</label>
+                <input type="email" id="signup-email" class="w-full px-4 py-2 mt-1 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="you@example.com">
+                <button id="send-signup-code-btn" class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition duration-300 mt-4">Send Code</button>
             </div>
-            <div id="code-field" class="hidden">
-              <label
-                for="code"
-                class="block text-sm font-medium text-gray-700"
-                >Verification Code</label
-              >
-              <input
-                type="text"
-                id="code"
-                class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              />
+            <div id="signup-step-2" class="hidden space-y-4">
+                <p class="text-sm text-gray-600">A code was sent to <strong id="signup-email-display"></strong>.</p>
+                <label for="signup-code" class="block text-sm font-medium text-gray-600">Verification Code</label>
+                <input type="text" id="signup-code" class="w-full px-4 py-2 mt-1 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="123456">
+                <button id="verify-signup-btn" class="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition duration-300">Verify & Sign Up</button>
             </div>
-            <button
-              type="submit"
-              id="auth-submit-btn"
-              class="w-full py-3 px-4 rounded-lg text-white font-semibold"
-            ></button>
-            <button
-              type="button"
-              onclick="app.showView('auth')"
-              class="w-full py-2 px-4 rounded-lg text-gray-600 hover:bg-gray-100"
-            >
-              Back
-            </button>
-          </form>
+            <button class="back-to-auth text-sm text-blue-600 hover:underline">&larr; Back to Welcome</button>
         </div>
 
-        <!-- Main App View -->
-        <div id="main-view" class="hidden">
-          <div class="flex justify-between items-center mb-6">
-            <p class="text-gray-700">
-              Logged in as: <strong id="user-email"></strong>
-            </p>
-            <button
-              onclick="app.logout()"
-              class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg shadow"
-            >
-              Logout
-            </button>
-          </div>
-
-          <!-- Navigation -->
-          <nav class="flex border-b mb-6">
-            <button
-              id="nav-profile"
-              onclick="app.showTabView('profile')"
-              class="flex-1 py-3 text-center font-medium border-b-2 border-blue-500 text-blue-600"
-            >
-              Profile
-            </button>
-            <button
-              id="nav-invoice"
-              onclick="app.showTabView('invoice')"
-              class="flex-1 py-3 text-center font-medium text-gray-500 hover:text-gray-700"
-            >
-              Create Invoice
-            </button>
-          </nav>
-
-          <!-- Profile Tab -->
-          <div id="profile-tab">
-            <form id="profile-form" class="space-y-4">
-              <h2 class="text-2xl font-semibold mb-4">Your Profile</h2>
-              <div>
-                <label
-                  for="shopName"
-                  class="block text-sm font-medium text-gray-700"
-                  >Shop Name</label
-                >
-                <input
-                  type="text"
-                  id="shopName"
-                  class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"
-                />
-              </div>
-              <div>
-                <label
-                  for="contact"
-                  class="block text-sm font-medium text-gray-700"
-                  >Contact (Phone/Email)</label
-                >
-                <input
-                  type="text"
-                  id="contact"
-                  class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"
-                />
-              </div>
-              <div>
-                <label
-                  for="address"
-                  class="block text-sm font-medium text-gray-700"
-                  >Address</label
-                >
-                <textarea
-                  id="address"
-                  rows="3"
-                  class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"
-                ></textarea>
-              </div>
-              <div>
-                <label
-                  for="signature"
-                  class="block text-sm font-medium text-gray-700"
-                  >Signature (e.g., Your Name)</label
-                >
-                <input
-                  type="text"
-                  id="signature"
-                  class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"
-                />
-              </div>
-              <div>
-                <label
-                  for="currency"
-                  class="block text-sm font-medium text-gray-700"
-                  >Currency Sign (e.g., $, €, £)</label
-                >
-                <input
-                  type="text"
-                  id="currency"
-                  placeholder="$"
-                  class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"
-                />
-              </div>
-              <button
-                type="submit"
-                class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg shadow"
-              >
-                Save Profile
-              </button>
-            </form>
-          </div>
-
-          <!-- Invoice Tab -->
-          <div id="invoice-tab" class="hidden">
-            <h2 class="text-2xl font-semibold mb-4">Create New Invoice</h2>
-            <form id="invoice-form" class="space-y-4">
-              <!-- Customer Info -->
-              <div>
-                <label
-                  for="customerName"
-                  class="block text-sm font-medium text-gray-700"
-                  >Customer Name</label
-                >
-                <input
-                  type="text"
-                  id="customerName"
-                  required
-                  class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"
-                />
-              </div>
-
-              <!-- Invoice Items -->
-              <h3 class="text-lg font-medium text-gray-900 pt-4">Items</h3>
-              <div id="invoice-items-container" class="space-y-3">
-                <!-- Items will be injected here by JS -->
-              </div>
-              <button
-                type="button"
-                onclick="app.addItem()"
-                class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow"
-              >
-                + Add Item
-              </button>
-
-              <!-- Totals -->
-              <div class="space-y-4 pt-4 border-t">
-                <div class="flex items-center gap-4">
-                  <label
-                    for="discountValue"
-                    class="block text-sm font-medium text-gray-700"
-                    >Discount</label
-                  >
-                  <input
-                    type="number"
-                    id="discountValue"
-                    min="0"
-                    value="0"
-                    class="block w-24 px-3 py-2 border border-gray-300 rounded-md shadow-sm"
-                  />
-                  <select
-                    id="discountType"
-                    class="block w-28 px-3 py-2 border border-gray-300 rounded-md shadow-sm"
-                  >
-                    <option value="flat">Flat</option>
-                    <option value="percent">%</option>
-                  </select>
-                </div>
-                <div class="text-right space-y-2">
-                  <p class="text-lg text-gray-700">
-                    Subtotal: <span id="subtotal-amount">$0.00</span>
-                  </p>
-                  <p class="text-lg text-gray-700">
-                    Discount: <span id="discount-amount">$0.00</span>
-                  </p>
-                  <p class="text-2xl font-bold text-gray-900">
-                    Total: <span id="total-amount">$0.00</span>
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg shadow"
-              >
-                Generate & Save PDF
-              </button>
-            </form>
-          </div>
+        <!-- ==== LOGIN VIEW ==== -->
+        <div id="login-view" class="view bg-white p-8 rounded-lg shadow-xl space-y-4">
+            <h2 class="text-2xl font-semibold text-gray-700">Log In</h2>
+            <div id="login-step-1">
+                <label for="login-email" class="block text-sm font-medium text-gray-600">Email</label>
+                <input type="email" id="login-email" class="w-full px-4 py-2 mt-1 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="you@example.com">
+                <button id="send-login-code-btn" class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition duration-300 mt-4">Send Code</button>
+            </div>
+            <div id="login-step-2" class="hidden space-y-4">
+                <p class="text-sm text-gray-600">A code was sent to <strong id="login-email-display"></strong>.</p>
+                <label for="login-code" class="block text-sm font-medium text-gray-600">Verification Code</label>
+                <input type="text" id="login-code" class="w-full px-4 py-2 mt-1 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="123456">
+                <button id="verify-login-btn" class="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition duration-300">Verify & Log In</button>
+            </div>
+            <button class="back-to-auth text-sm text-blue-600 hover:underline">&larr; Back to Welcome</button>
         </div>
-      </div>
+
+        <!-- ==== MAIN APP VIEW ==== -->
+        <div id="main-app-view" class="view w-full max-w-2xl space-y-6">
+            <div class="bg-white p-6 rounded-lg shadow-xl">
+                <div class="flex justify-between items-center mb-4">
+                    <div>
+                        <p class="text-sm text-gray-500">Logged in as:</p>
+                        <h2 id="user-email-display" class="text-xl font-semibold text-gray-800"></h2>
+                    </div>
+                    <button id="logout-btn" class="text-sm bg-red-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-red-600 transition">Log Out</button>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <button id="show-profile-btn" class="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 transition">Manage Profile</button>
+                    <button id="show-invoice-btn" class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition">New Invoice</button>
+                </div>
+            </div>
+
+            <!-- Profile Sub-View -->
+            <div id="profile-view" class="view bg-white p-8 rounded-lg shadow-xl space-y-4">
+                <h3 class="text-2xl font-semibold text-gray-700">Business Profile</h3>
+                <div>
+                    <label for="profile-shop-name" class="block text-sm font-medium text-gray-600">Shop Name</label>
+                    <input type="text" id="profile-shop-name" class="w-full input-field" placeholder="My Awesome Store">
+                </div>
+                <div>
+                    <label for="profile-contact" class="block text-sm font-medium text-gray-600">Contact (Phone/Email)</label>
+                    <input type="text" id="profile-contact" class="w-full input-field" placeholder="+1 234 567 890 / info@store.com">
+                </div>
+                <div>
+                    <label for="profile-address" class="block text-sm font-medium text-gray-600">Address</label>
+                    <textarea id="profile-address" rows="3" class="w-full input-field" placeholder="123 Main St, Anytown, USA"></textarea>
+                </div>
+                <div>
+                    <label for="profile-currency" class="block text-sm font-medium text-gray-600">Currency (Name or Sign)</label>
+                    <input type="text" id="profile-currency" class="w-full input-field" placeholder="$">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-600">Signature</label>
+                    <div class="signature-pad-container mt-1">
+                        <canvas id="signature-canvas"></canvas>
+                    </div>
+                    <button id="clear-signature-btn" type="button" class="text-sm text-red-600 hover:underline mt-1">Clear Signature</button>
+                </div>
+                <div class="flex gap-4">
+                    <button id="save-profile-btn" class="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition">Save Profile</button>
+                    <button type="button" class="back-to-main w-full bg-gray-500 text-white py-3 rounded-lg font-semibold hover:bg-gray-600 transition">Cancel</button>
+                </div>
+            </div>
+
+            <!-- Invoice Sub-View -->
+            <div id="invoice-view" class="view bg-white p-8 rounded-lg shadow-xl space-y-6">
+                <h3 class="text-2xl font-semibold text-gray-700">Create Invoice</h3>
+                <div>
+                    <label for="invoice-customer" class="block text-sm font-medium text-gray-600">Customer Name</label>
+                    <input type="text" id="invoice-customer" class="w-full input-field" placeholder="John Doe">
+                </div>
+                
+                <!-- Invoice Items -->
+                <div class="space-y-4">
+                    <h4 class="text-lg font-semibold text-gray-700">Items</h4>
+                    <div id="invoice-items-container" class="space-y-3">
+                        <!-- Items will be added here -->
+                    </div>
+                    <button id="add-item-btn" type="button" class="w-full bg-blue-100 text-blue-700 py-2 rounded-lg font-medium hover:bg-blue-200 transition">+ Add Item</button>
+                </div>
+                
+                <!-- Invoice Total -->
+                <div class="border-t pt-4 space-y-4">
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600 font-medium">Subtotal</span>
+                        <span id="invoice-subtotal" class="font-semibold text-gray-800">0.00</span>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <label for="invoice-discount-type" class="text-sm font-medium text-gray-600">Discount</label>
+                        <select id="invoice-discount-type" class="border border-gray-300 rounded-lg p-2 text-sm">
+                            <option value="flat">Flat</option>
+                            <option value="percent">Percent (%)</option>
+                        </select>
+                        <input type="number" id="invoice-discount-value" value="0" class="w-24 input-field text-right" placeholder="0">
+                    </div>
+                    <div class="flex justify-between items-center text-xl font-bold text-gray-900">
+                        <span>Total</span>
+                        <span id="invoice-total">0.00</span>
+                    </div>
+                </div>
+
+                <div class="flex gap-4">
+                    <button id="generate-pdf-btn" class="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition">Save & Generate PDF</Vbutton>
+                    <button type="button" class="back-to-main w-full bg-gray-500 text-white py-3 rounded-lg font-semibold hover:bg-gray-600 transition">Cancel</button>
+                </div>
+            </div>
+
+            <!-- PDF Preview Sub-View -->
+            <div id="invoice-preview-view" class="view bg-white p-8 rounded-lg shadow-xl space-y-4 text-center">
+                <h3 class="text-2xl font-semibold text-green-600">Invoice Generated!</h3>
+                <p class="text-gray-600">Your invoice has been saved as a PDF in your Google Drive.</p>
+                <a id="pdf-link" href="#" target="_blank" class="inline-block bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition">
+                    View PDF
+                </a>
+                <button type="button" class="back-to-main block w-full text-center mt-4 text-sm text-blue-600 hover:underline">Back to Dashboard</button>
+            </div>
+        </div>
+
     </div>
 
+    <!-- Loader -->
+    <div id="loader" class="view">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Message Box -->
+    <div id="message-box"></div>
+
     <script>
-      /**
-       * !!! IMPORTANT !!!
-       * Paste your DEPLOYED Google Apps Script Web App URL here.
-       */
-      const DEPLOYED_URL =
-        "https://script.google.com/macros/s/AKfycbwY7mjKEc3klKhBai6eoHnyyN9XBER2oDXqIBDFc1L4STKQOM0WwLPwrJaURagXA6cF/exec";
+        // --- !!! IMPORTANT !!! ---
+        // 1. Deploy your Google Apps Script (Code.gs) as a Web App.
+        // 2. Choose "Execute as: Me".
+        // 3. Choose "Who has access: Anyone".
+        // 4. Copy the Web App URL and paste it below.
+        const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyhleKWpq4zYrKRrnKQG0z5rbNfyt3u9RNlY4u-D1tstQ8tdXMKlMCAkXbE6isaYIj3/exec';
+        // -------------------------
 
-      // --- UI Element References ---
-      const ui = {
-        app: document.getElementById("app-container"),
-        message: document.getElementById("message-bar"),
-        loading: document.getElementById("loading"),
-        authView: document.getElementById("auth-view"),
-        authButtons: document.getElementById("auth-buttons"),
-        authForm: document.getElementById("auth-form"),
-        authTitle: document.getElementById("auth-title"),
-        authBtn: document.getElementById("auth-submit-btn"),
-        emailField: document.getElementById("email"),
-        codeField: document.getElementById("code-field"),
-        codeFieldInput: document.getElementById("code"),
-        mainView: document.getElementById("main-view"),
-        userEmail: document.getElementById("user-email"),
-        navProfile: document.getElementById("nav-profile"),
-        navInvoice: document.getElementById("nav-invoice"),
-        profileTab: document.getElementById("profile-tab"),
-        profileForm: document.getElementById("profile-form"),
-        invoiceTab: document.getElementById("invoice-tab"),
-        invoiceForm: document.getElementById("invoice-form"),
-        itemsContainer: document.getElementById("invoice-items-container"),
-        discountValue: document.getElementById("discountValue"),
-        discountType: document.getElementById("discountType"),
-        subtotalAmount: document.getElementById("subtotal-amount"),
-        discountAmount: document.getElementById("discount-amount"),
-        totalAmount: document.getElementById("total-amount"),
-      };
+        // --- GLOBAL STATE ---
+        let currentUser = null;
+        let userProfile = null;
+        let signaturePad = null;
+        let messageTimer = null;
 
-      // --- App State ---
-      const app = {
-        state: {
-          view: "auth", // 'auth', 'main'
-          tab: "profile", // 'profile', 'invoice'
-          authMode: null, // 'login', 'signup'
-          authStep: "email", // 'email', 'code'
-          user: null, // { email, invoiceCodePrefix }
-          profile: null, // { shopName, ... }
-          items: [], // [{ id, name, qty, rate }]
-          loading: false,
-        },
+        // --- DOM ELEMENTS ---
+        const $ = (selector) => document.querySelector(selector);
+        const $$ = (selector) => document.querySelectorAll(selector);
 
-        // --- Initialization ---
-        init() {
-          console.log("App init");
-          this.checkLogin();
-          // Add event listeners
-          ui.authForm.addEventListener("submit", this.handleAuthSubmit.bind(this));
-          ui.profileForm.addEventListener(
-            "submit",
-            this.handleProfileSave.bind(this)
-          );
-          ui.invoiceForm.addEventListener(
-            "submit",
-            this.handleInvoiceCreate.bind(this)
-          );
-          ui.discountValue.addEventListener(
-            "input",
-            this.calculateTotals.bind(this)
-          );
-          ui.discountType.addEventListener(
-            "change",
-            this.calculateTotals.bind(this)
-          );
-        },
+        const views = {
+            auth: $('#auth-view'),
+            signup: $('#signup-view'),
+            login: $('#login-view'),
+            main: $('#main-app-view'),
+            profile: $('#profile-view'),
+            invoice: $('#invoice-view'),
+            preview: $('#invoice-preview-view'),
+            loader: $('#loader')
+        };
+        const messageBox = $('#message-box');
 
-        // --- Auth & State Management ---
-        checkLogin() {
-          const email = localStorage.getItem("quickbill_email");
-          if (email) {
-            this.state.user = { email: email };
-            ui.userEmail.textContent = email;
-            this.showView("main");
-            this.loadProfile();
-          } else {
-            this.showView("auth");
-          }
-        },
+        // --- UTILITY FUNCTIONS ---
 
-        logout() {
-          localStorage.removeItem("quickbill_email");
-          this.state.user = null;
-          this.state.profile = null;
-          this.state.items = [];
-          this.showView("auth");
-        },
+        function showView(viewId) {
+            Object.values(views).forEach(v => v.style.display = 'none');
+            // Handle main app sub-views
+            if (viewId === 'profile' || viewId === 'invoice' || viewId === 'preview') {
+                views.main.style.display = 'block';
+                views[viewId].style.display = 'block';
+            } else if (views[viewId]) {
+                views[viewId].style.display = 'block';
+            }
+        }
 
-        // --- View Switching ---
-        showView(view) {
-          this.state.view = view;
-          ui.authView.classList.toggle("hidden", view !== "auth");
-          ui.mainView.classList.toggle("hidden", view !== "main");
+        function showLoader(show) {
+            views.loader.style.display = show ? 'flex' : 'none';
+        }
 
-          if (view === "auth") {
-            ui.authButtons.classList.remove("hidden");
-            ui.authForm.classList.add("hidden");
-            this.state.authMode = null;
-            this.state.authStep = "email";
-          }
-        },
+        function showMessage(message, isError = false) {
+            if (messageTimer) clearTimeout(messageTimer);
+            messageBox.textContent = message;
+            messageBox.style.backgroundColor = isError ? '#ef4444' : '#10b981'; // red-500 or green-500
+            messageBox.classList.add('show');
+            messageTimer = setTimeout(() => {
+                messageBox.classList.remove('show');
+            }, 3000);
+        }
 
-        showTabView(tab) {
-          this.state.tab = tab;
-          ui.profileTab.classList.toggle("hidden", tab !== "profile");
-          ui.invoiceTab.classList.toggle("hidden", tab !== "invoice");
+        async function apiCall(action, data) {
+            if (WEB_APP_URL === 'PASTE_YOUR_DEPLOYED_WEB_APP_URL_HERE') {
+                showMessage('ERROR: Web App URL is not set in the HTML file.', true);
+                return { status: 'error', message: 'Config error' };
+            }
 
-          ui.navProfile.classList.toggle("border-blue-500", tab === "profile");
-          ui.navProfile.classList.toggle("text-blue-600", tab === "profile");
-          ui.navInvoice.classList.toggle("border-blue-500", tab === "invoice");
-          ui.navInvoice.classList.toggle("text-blue-600", tab === "invoice");
-        },
+            showLoader(true);
+            try {
+                const response = await fetch(WEB_APP_URL, {
+                    method: 'POST',
+                    mode: 'cors',
+                    cache: 'no-cache',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action, data }),
+                    redirect: 'follow'
+                });
+                
+                const result = await response.json();
+                showLoader(false);
 
-        showAuthForm(mode) {
-          this.state.authMode = mode;
-          this.state.authStep = "email";
-          ui.authButtons.classList.add("hidden");
-          ui.authForm.classList.remove("hidden");
-          ui.codeField.classList.add("hidden");
-          ui.emailField.value = "";
-          ui.codeFieldInput.value = "";
+                if (result.status === 'error') {
+                    showMessage(result.message, true);
+                }
+                
+                return result;
+            } catch (error) {
+                console.error('API Call Error:', error);
+                showLoader(false);
+                showMessage('A network error occurred: ' + error.message, true);
+                return { status: 'error', message: error.message };
+            }
+        }
 
-          if (mode === "signup") {
-            ui.authTitle.textContent = "Sign Up";
-            ui.authBtn.textContent = "Send Code";
-            ui.authBtn.className =
-              "w-full py-3 px-4 rounded-lg text-white font-semibold bg-blue-500 hover:bg-blue-600";
-          } else {
-            ui.authTitle.textContent = "Login";
-            ui.authBtn.textContent = "Send Code";
-            ui.authBtn.className =
-              "w-full py-3 px-4 rounded-lg text-white font-semibold bg-green-500 hover:bg-green-600";
-          }
-        },
+        // --- AUTHENTICATION ---
 
-        // --- API Call Handling ---
-        async apiCall(action, payload) {
-          if (DEPLOYED_URL === "YOUR_DEPLOYED_WEB_APP_URL_HERE") {
-            this.showMessage(
-              "error",
-              "Configuration Error: DEPLOYED_URL is not set in index.html"
-            );
-            return;
-          }
+        function checkLoginState() {
+            const storedUser = localStorage.getItem('quickBillUser');
+            if (storedUser) {
+                currentUser = JSON.parse(storedUser);
+                $('#user-email-display').textContent = currentUser.email;
+                showView('main');
+            } else {
+                showView('auth');
+            }
+        }
 
-          this.setLoading(true);
-          this.showMessage(null); // Clear previous messages
-          try {
-            const res = await fetch(DEPLOYED_URL, {
-              method: "POST",
-              body: JSON.stringify({ action, ...payload }),
-              headers: {
-                "Content-Type": "text/plain;charset=utf-8", // Required for Apps Script
-              },
+        function saveLoginState(user) {
+            localStorage.setItem('quickBillUser', JSON.stringify(user));
+            currentUser = user;
+            $('#user-email-display').textContent = currentUser.email;
+        }
+
+        function handleLogout() {
+            localStorage.removeItem('quickBillUser');
+            currentUser = null;
+            userProfile = null;
+            showView('auth');
+            showMessage('You have been logged out.');
+        }
+
+        // --- EVENT LISTENERS (AUTH) ---
+
+        $('#show-signup-btn').addEventListener('click', () => showView('signup'));
+        $('#show-login-btn').addEventListener('click', () => showView('login'));
+        $$('.back-to-auth').forEach(btn => btn.addEventListener('click', () => showView('auth')));
+        $('#logout-btn').addEventListener('click', handleLogout);
+
+        // Signup Flow
+        $('#send-signup-code-btn').addEventListener('click', async () => {
+            const email = $('#signup-email').value;
+            if (!email) return showMessage('Please enter an email.', true);
+            
+            const result = await apiCall('signup', { email });
+            if (result.status === 'success') {
+                showMessage(result.message);
+                $('#signup-email-display').textContent = email;
+                $('#signup-step-1').style.display = 'none';
+                $('#signup-step-2').style.display = 'block';
+            }
+        });
+
+        $('#verify-signup-btn').addEventListener('click', async () => {
+            const email = $('#signup-email').value;
+            const code = $('#signup-code').value;
+            if (!code) return showMessage('Please enter the code.', true);
+
+            const result = await apiCall('verifySignup', { email, code });
+            if (result.status === 'success') {
+                showMessage(result.message);
+                // Reset form and go to login
+                $('#signup-email').value = '';
+                $('#signup-code').value = '';
+                $('#signup-step-1').style.display = 'block';
+                $('#signup-step-2').style.display = 'none';
+                showView('login');
+            }
+        });
+
+        // Login Flow
+        $('#send-login-code-btn').addEventListener('click', async () => {
+            const email = $('#login-email').value;
+            if (!email) return showMessage('Please enter an email.', true);
+            
+            const result = await apiCall('login', { email });
+            if (result.status === 'success') {
+                showMessage(result.message);
+                $('#login-email-display').textContent = email;
+                $('#login-step-1').style.display = 'none';
+                $('#login-step-2').style.display = 'block';
+            }
+        });
+
+        $('#verify-login-btn').addEventListener('click', async () => {
+            const email = $('#login-email').value;
+            const code = $('#login-code').value;
+            if (!code) return showMessage('Please enter the code.', true);
+
+            const result = await apiCall('verifyLogin', { email, code });
+            if (result.status === 'success') {
+                showMessage(result.message);
+                saveLoginState(result.data);
+                // Reset form
+                $('#login-email').value = '';
+                $('#login-code').value = '';
+                $('#login-step-1').style.display = 'block';
+                $('#login-step-2').style.display = 'none';
+                showView('main');
+            }
+        });
+
+        // --- EVENT LISTENERS (MAIN APP) ---
+
+        $$('.back-to-main').forEach(btn => btn.addEventListener('click', () => {
+            // Reset invoice form
+            $('#invoice-items-container').innerHTML = '';
+            $('#invoice-customer').value = '';
+            $('#invoice-discount-value').value = '0';
+            updateTotals();
+            showView('main');
+        }));
+
+        // --- PROFILE MANAGEMENT ---
+
+        function initSignaturePad() {
+            const canvas = $('#signature-canvas');
+            // Adjust canvas for high DPI screens
+            const ratio = Math.max(window.devicePixelRatio || 1, 1);
+            canvas.width = canvas.offsetWidth * ratio;
+            canvas.height = canvas.offsetHeight * ratio;
+            canvas.getContext("2d").scale(ratio, ratio);
+            
+            signaturePad = new SignaturePad(canvas, {
+                backgroundColor: 'rgb(255, 255, 255)'
+            });
+            signaturePad.clear(); // Ensure it's clear on init
+        }
+
+        $('#show-profile-btn').addEventListener('click', async () => {
+            showView('profile');
+            if (!signaturePad) initSignaturePad();
+            
+            const result = await apiCall('getProfile', { email: currentUser.email });
+            if (result.status === 'success' && result.data) {
+                userProfile = result.data;
+                $('#profile-shop-name').value = userProfile.shopName || '';
+                $('#profile-contact').value = userProfile.contact || '';
+                $('#profile-address').value = userProfile.address || '';
+                $('#profile-currency').value = userProfile.currency || '';
+                if (userProfile.signature) {
+                    signaturePad.fromDataURL(userProfile.signature);
+                } else {
+                    signaturePad.clear();
+                }
+            } else {
+                // No profile yet, or error
+                userProfile = null;
+                signaturePad.clear();
+            }
+        });
+
+        $('#clear-signature-btn').addEventListener('click', () => signaturePad.clear());
+
+        $('#save-profile-btn').addEventListener('click', async () => {
+            if (signaturePad.isEmpty()) {
+                return showMessage('Please provide a signature.', true);
+            }
+
+            const profileData = {
+                shopName: $('#profile-shop-name').value,
+                contact: $('#profile-contact').value,
+                address: $('#profile-address').value,
+                currency: $('#profile-currency').value,
+                signature: signaturePad.toDataURL('image/png') // Save as PNG
+            };
+
+            const result = await apiCall('saveProfile', {
+                email: currentUser.email,
+                profileData: JSON.stringify(profileData)
             });
 
-            if (!res.ok) {
-              throw new Error(`HTTP error! status: ${res.status}`);
+            if (result.status === 'success') {
+                userProfile = profileData; // Update local cache
+                showMessage(result.message);
+                showView('main');
             }
+        });
 
-            const data = await res.json();
-            this.setLoading(false);
+        // --- INVOICE MANAGEMENT ---
 
-            if (data.status === "error") {
-              this.showMessage("error", data.message);
-              return null;
+        $('#show-invoice-btn').addEventListener('click', async () => {
+            // Ensure profile is loaded before creating an invoice
+            if (!userProfile) {
+                const result = await apiCall('getProfile', { email: currentUser.email });
+                if (result.status === 'success' && result.data) {
+                    userProfile = result.data;
+                } else {
+                    showMessage('Please create your profile before making an invoice.', true);
+                    return showView('profile');
+                }
             }
-
-            return data;
-          } catch (error) {
-            console.error("API Call Error:", error);
-            this.setLoading(false);
-            this.showMessage("error", `Error: ${error.message}`);
-            return null;
-          }
-        },
-
-        // --- Auth Logic ---
-        async handleAuthSubmit(e) {
-          e.preventDefault();
-          const email = ui.emailField.value;
-          if (!email) {
-            this.showMessage("error", "Email is required");
-            return;
-          }
-
-          if (this.state.authStep === "email") {
-            // Step 1: Send Code
-            const action =
-              this.state.authMode === "signup"
-                ? "sendSignupCode"
-                : "sendLoginCode";
-            const data = await this.apiCall(action, { email });
-
-            if (data && data.status === "success") {
-              this.showMessage("success", "Verification code sent to your email.");
-              this.state.authStep = "code";
-              ui.codeField.classList.remove("hidden");
-              ui.authBtn.textContent =
-                this.state.authMode === "signup" ? "Sign Up" : "Login";
+            if (!userProfile.shopName || !userProfile.signature) {
+                 showMessage('Please complete your profile (Shop Name, Signature) before making an invoice.', true);
+                 return showView('profile');
             }
-          } else {
-            // Step 2: Verify Code
-            const code = ui.codeFieldInput.value;
-            if (!code) {
-              this.showMessage("error", "Code is required");
-              return;
-            }
-
-            const action =
-              this.state.authMode === "signup"
-                ? "verifySignup"
-                : "verifyLogin";
-            const data = await this.apiCall(action, { email, code });
-
-            if (data && data.status === "success") {
-              this.showMessage("success", "Success! Logging you in...");
-              this.state.user = data.user;
-              localStorage.setItem("quickbill_email", data.user.email);
-              ui.userEmail.textContent = data.user.email;
-              this.showView("main");
-              this.loadProfile();
-            }
-          }
-        },
-
-        // --- Profile Logic ---
-        async loadProfile() {
-          const data = await this.apiCall("getProfile", {
-            email: this.state.user.email,
-          });
-          if (data && data.status === "success" && data.profile) {
-            this.state.profile = data.profile;
-            ui.profileForm.shopName.value = data.profile.shopName || "";
-            ui.profileForm.contact.value = data.profile.contact || "";
-            ui.profileForm.address.value = data.profile.address || "";
-            ui.profileForm.signature.value = data.profile.signature || "";
-            ui.profileForm.currency.value = data.profile.currency || "$";
-          } else {
-            // No profile yet, just set default currency
-            ui.profileForm.currency.value = "$";
-          }
-          // Ensure invoice tab reflects currency
-          this.calculateTotals();
-        },
-
-        async handleProfileSave(e) {
-          e.preventDefault();
-          const profile = {
-            shopName: ui.profileForm.shopName.value,
-            contact: ui.profileForm.contact.value,
-            address: ui.profileForm.address.value,
-            signature: ui.profileForm.signature.value,
-            currency: ui.profileForm.currency.value || "$",
-          };
-
-          const data = await this.apiCall("saveProfile", {
-            email: this.state.user.email,
-            profile: profile,
-          });
-
-          if (data && data.status === "success") {
-            this.showMessage("success", "Profile saved successfully!");
-            this.state.profile = data.profile;
-            // Ensure invoice tab reflects new currency
-            this.calculateTotals();
-          }
-        },
-
-        // --- Invoice Logic ---
-        addItem() {
-          const id = new Date().getTime(); // Simple unique ID
-          this.state.items.push({ id, name: "", qty: 1, rate: 0 });
-          this.renderItems();
-        },
-
-        removeItem(id) {
-          this.state.items = this.state.items.filter((item) => item.id !== id);
-          this.renderItems();
-          this.calculateTotals();
-        },
-
-        updateItem(id, field, value) {
-          const item = this.state.items.find((item) => item.id === id);
-          if (item) {
-            item[field] = value;
-          }
-          this.calculateTotals();
-        },
-
-        renderItems() {
-          ui.itemsContainer.innerHTML = "";
-          if (this.state.items.length === 0) {
-            ui.itemsContainer.innerHTML = `<p class="text-gray-500 text-center">No items added yet.</p>`;
-            return;
-          }
-          this.state.items.forEach((item) => {
-            const itemEl = document.createElement("div");
-            itemEl.className = "flex items-center gap-2 p-2 border rounded-md";
-            itemEl.innerHTML = `
-              <input type="text" placeholder="Item Name" value="${
-                item.name
-              }" oninput="app.updateItem(${
-              item.id
-            }, 'name', this.value)" class="flex-grow px-2 py-1 border border-gray-300 rounded-md">
-              <input type="number" placeholder="Qty" value="${
-                item.qty
-              }" oninput="app.updateItem(${
-              item.id
-            }, 'qty', parseFloat(this.value))" class="w-16 px-2 py-1 border border-gray-300 rounded-md">
-              <input type="number" placeholder="Rate" value="${
-                item.rate
-              }" oninput="app.updateItem(${
-              item.id
-            }, 'rate', parseFloat(this.value))" class="w-20 px-2 py-1 border border-gray-300 rounded-md">
-              <button type="button" onclick="app.removeItem(${
-                item.id
-              })" class="text-red-500 hover:text-red-700 font-bold text-xl">&times;</button>
+            showView('invoice');
+            updateTotals(); // Ensure totals are 0
+        });
+        
+        // Add invoice item row
+        $('#add-item-btn').addEventListener('click', () => {
+            const itemId = `item-${Date.now()}`;
+            const itemHtml = `
+                <div id="${itemId}" class="invoice-item grid grid-cols-12 gap-2 items-center">
+                    <input type="text" class="item-name col-span-5 input-field" placeholder="Item Name">
+                    <input type="number" class="item-qty col-span-2 input-field text-right" value="1" placeholder="Qty">
+                    <input type="number" class="item-rate col-span-3 input-field text-right" value="0.00" placeholder="Rate">
+                    <span class="item-total col-span-1 text-right text-sm font-medium">0.00</span>
+                    <button type="button" class="remove-item-btn col-span-1 text-red-500 hover:text-red-700" data-itemid="${itemId}">
+                        <svg class="w-5 h-5 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                    </button>
+                </div>
             `;
-            ui.itemsContainer.appendChild(itemEl);
-          });
-        },
+            $('#invoice-items-container').insertAdjacentHTML('beforeend', itemHtml);
+            
+            // Add listeners to new inputs
+            const itemElement = $(`#${itemId}`);
+            itemElement.querySelector('.item-qty').addEventListener('input', updateTotals);
+            itemElement.querySelector('.item-rate').addEventListener('input', updateTotals);
+            itemElement.querySelector('.remove-item-btn').addEventListener('click', (e) => {
+                $(`#${e.currentTarget.dataset.itemid}`).remove();
+                updateTotals();
+            });
+        });
 
-        calculateTotals() {
-          const currency = this.state.profile?.currency || "$";
-          let subtotal = 0;
-          this.state.items.forEach((item) => {
-            subtotal += (item.qty || 0) * (item.rate || 0);
-          });
+        // Calculate totals
+        $('#invoice-discount-type').addEventListener('change', updateTotals);
+        $('#invoice-discount-value').addEventListener('input', updateTotals);
 
-          const discountVal = parseFloat(ui.discountValue.value) || 0;
-          const discountType = ui.discountType.value;
-          let discountAmount = 0;
+        function updateTotals() {
+            let subtotal = 0;
+            const currency = userProfile?.currency || '$';
+            
+            $$('.invoice-item').forEach(item => {
+                const qty = parseFloat(item.querySelector('.item-qty').value) || 0;
+                const rate = parseFloat(item.querySelector('.item-rate').value) || 0;
+                const total = qty * rate;
+                item.querySelector('.item-total').textContent = total.toFixed(2);
+                subtotal += total;
+            });
+            
+            $('#invoice-subtotal').textContent = `${currency} ${subtotal.toFixed(2)}`;
+            
+            const discountType = $('#invoice-discount-type').value;
+            const discountValue = parseFloat($('#invoice-discount-value').value) || 0;
+            
+            let discountAmount = 0;
+            if (discountType === 'flat') {
+                discountAmount = discountValue;
+            } else if (discountType === 'percent') {
+                discountAmount = (subtotal * discountValue) / 100;
+            }
+            
+            const finalTotal = subtotal - discountAmount;
+            $('#invoice-total').textContent = `${currency} ${finalTotal.toFixed(2)}`;
+        }
 
-          if (discountType === "percent") {
-            discountAmount = (subtotal * discountVal) / 100;
-          } else {
-            discountAmount = discountVal;
-          }
+        // Generate PDF
+        $('#generate-pdf-btn').addEventListener('click', async () => {
+            const customerName = $('#invoice-customer').value;
+            if (!customerName) return showMessage('Please enter a customer name.', true);
 
-          const total = subtotal - discountAmount;
+            const { html, invoiceId, items } = generateInvoiceHtml();
+            if (items.length === 0) return showMessage('Please add at least one item.', true);
 
-          ui.subtotalAmount.textContent = `${currency}${subtotal.toFixed(2)}`;
-          ui.discountAmount.textContent = `-${currency}${discountAmount.toFixed(
-            2
-          )}`;
-          ui.totalAmount.textContent = `${currency}${total.toFixed(2)}`;
-        },
+            const result = await apiCall('createInvoice', {
+                email: currentUser.email,
+                invoiceHtml: html,
+                invoiceId: invoiceId
+            });
 
-        async handleInvoiceCreate(e) {
-          e.preventDefault();
-          const customerName = ui.invoiceForm.customerName.value;
-          if (!customerName) {
-            this.showMessage("error", "Customer Name is required");
-            return;
-          }
-          if (this.state.items.length === 0) {
-            this.showMessage("error", "Please add at least one item");
-            return;
-          }
-          if (!this.state.profile) {
-            this.showMessage(
-              "error",
-              "Please save your profile before creating an invoice"
-            );
-            this.showTabView("profile");
-            return;
-          }
+            if (result.status === 'success') {
+                showMessage(result.message);
+                $('#pdf-link').href = result.data.pdfUrl;
+                showView('preview');
+            }
+        });
 
-          // Get final totals
-          let subtotal = 0;
-          this.state.items.forEach((item) => {
-            subtotal += (item.qty || 0) * (item.rate || 0);
-          });
-          const discountVal = parseFloat(ui.discountValue.value) || 0;
-          const discountType = ui.discountType.value;
-          let discountAmount =
-            discountType === "percent"
-              ? (subtotal * discountVal) / 100
-              : discountVal;
-          const total = subtotal - discountAmount;
+        function generateInvoiceHtml() {
+            const invoiceId = currentUser.invoiceCode + Math.floor(10000 + Math.random() * 90000);
+            const customerName = $('#invoice-customer').value;
+            const date = new Date().toLocaleDateString();
+            const currency = userProfile.currency || '$';
 
-          const invoiceData = {
-            customerName: customerName,
-            items: this.state.items,
-            date: new Date().toLocaleDateString(),
-            discount: {
-              value: discountVal,
-              type: discountType,
-            },
-            subtotal: subtotal,
-            discountAmount: discountAmount,
-            total: total,
-          };
+            let itemsHtml = '';
+            let subtotal = 0;
+            let items = [];
+            
+            $$('.invoice-item').forEach(item => {
+                const name = item.querySelector('.item-name').value || 'Unnamed Item';
+                const qty = parseFloat(item.querySelector('.item-qty').value) || 0;
+                const rate = parseFloat(item.querySelector('.item-rate').value) || 0;
+                const total = qty * rate;
+                subtotal += total;
+                items.push({ name, qty, rate, total });
+                
+                itemsHtml += `
+                    <tr class="item-row">
+                        <td>${name}</td>
+                        <td class="text-right">${qty}</td>
+                        <td class="text-right">${rate.toFixed(2)}</td>
+                        <td class="text-right">${total.toFixed(2)}</td>
+                    </tr>
+                `;
+            });
+            
+            const discountType = $('#invoice-discount-type').value;
+            const discountValue = parseFloat($('#invoice-discount-value').value) || 0;
+            let discountAmount = 0;
+            let discountText = 'Discount';
 
-          const data = await this.apiCall("createInvoice", {
-            email: this.state.user.email,
-            invoiceData: invoiceData,
-          });
+            if (discountType === 'flat') {
+                discountAmount = discountValue;
+                discountText = `Discount (${currency})`;
+            } else if (discountType === 'percent') {
+                discountAmount = (subtotal * discountValue) / 100;
+                discountText = `Discount (${discountValue}%)`;
+            }
+            
+            const finalTotal = subtotal - discountAmount;
 
-          if (data && data.status === "success") {
-            this.showMessage(
-              "success",
-              `Invoice ${data.invoiceId} created! PDF link: ${data.pdfUrl}`
-            );
-            // Open link in new tab
-            window.open(data.pdfUrl, "_blank");
-            // Reset invoice form
-            this.state.items = [];
-            this.renderItems();
-            this.calculateTotals();
-            ui.invoiceForm.customerName.value = "";
-            ui.discountValue.value = "0";
-          }
-        },
+            const html = `
+                <html>
+                <head>
+                    <style>
+                        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.6; margin: 0; padding: 0; }
+                        .container { width: 90%; margin: 40px auto; border: 1px solid #eee; box-shadow: 0 0 10px rgba(0,0,0,0.1); padding: 30px; }
+                        .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; }
+                        .header-left { max-width: 60%; }
+                        .header-left h1 { margin: 0; color: #333; font-size: 28px; }
+                        .header-left p { margin: 5px 0; color: #555; font-size: 14px; white-space: pre-wrap; }
+                        .header-right { text-align: right; }
+                        .header-right h2 { margin: 0; color: #007bff; font-size: 24px; }
+                        .header-right p { margin: 5px 0; font-size: 14px; }
+                        .customer-info { margin-bottom: 30px; }
+                        .customer-info p { margin: 5px 0; font-size: 14px; }
+                        table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+                        th, td { border-bottom: 1px solid #eee; padding: 12px; text-align: left; }
+                        th { background-color: #f9f9f9; color: #333; font-weight: 600; }
+                        .item-row td { vertical-align: top; }
+                        .text-right { text-align: right; }
+                        .totals { width: 40%; margin-left: auto; }
+                        .totals table { width: 100%; }
+                        .totals td { padding: 8px; }
+                        .totals .label { font-weight: 600; color: #555; }
+                        .totals .total-row td { border-top: 2px solid #333; font-size: 18px; font-weight: 700; }
+                        .footer { margin-top: 40px; display: flex; justify-content: space-between; align-items: flex-end; }
+                        .footer p { margin: 0; font-size: 14px; color: #777; }
+                        .footer .signature img { max-width: 200px; max-height: 80px; }
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <div class="header">
+                            <div class="header-left">
+                                <h1>${userProfile.shopName || 'Your Shop'}</h1>
+                                <p>${userProfile.contact || ''}</p>
+                                <p>${userProfile.address || ''}</p>
+                            </div>
+                            <div class="header-right">
+                                <h2>INVOICE</h2>
+                                <p><strong>Invoice #:</strong> ${invoiceId}</p>
+                                <p><strong>Date:</strong> ${date}</p>
+                            </div>
+                        </div>
+                        <div class="customer-info">
+                            <strong>Bill To:</strong>
+                            <p>${customerName}</p>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Item</th>
+                                    <th class="text-right">Quantity</th>
+                                    <th class="text-right">Rate (${currency})</th>
+                                    <th class="text-right">Total (${currency})</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${itemsHtml}
+                            </tbody>
+                        </table>
+                        <div class="totals">
+                            <table>
+                                <tbody>
+                                    <tr>
+                                        <td class="label">Subtotal</td>
+                                        <td class="text-right">${subtotal.toFixed(2)}</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="label">${discountText}</td>
+                                        <td class="text-right">${discountAmount.toFixed(2)}</td>
+                                    </tr>
+                                    <tr class="total-row">
+                                        <td class="label">Total (${currency})</td>
+                                        <td class="text-right">${finalTotal.toFixed(2)}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="footer">
+                            <p>Thank you for your business!</p>
+                            <div class="signature">
+                                <img src="${userProfile.signature}" alt="Signature">
+                            </div>
+                        </div>
+                    </div>
+                </body>
+                </html>
+            `;
+            
+            return { html, invoiceId, items };
+        }
 
-        // --- UI Helpers ---
-        setLoading(isLoading) {
-          this.state.loading = isLoading;
-          ui.loading.classList.toggle("hidden", !isLoading);
-        },
+        // --- INITIALIZATION ---
+        // Add common styles to utility classes
+        document.head.insertAdjacentHTML('beforeend', `
+            <style>
+                .input-field {
+                    width: 100%;
+                    padding: 0.5rem 0.75rem;
+                    border: 1px solid #d1d5db; /* gray-300 */
+                    border-radius: 0.375rem; /* rounded-md */
+                    transition: border-color 0.2s, box-shadow 0.2s;
+                }
+                .input-field:focus {
+                    outline: none;
+                    border-color: #3b82f6; /* blue-500 */
+                    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.4);
+                }
+            </style>
+        `);
 
-        showMessage(type, message) {
-          if (!type) {
-            ui.message.classList.add("hidden");
-            return;
-          }
-          ui.message.textContent = message;
-          ui.message.className =
-            "p-3 rounded-md mb-4 text-center text-white";
-          if (type === "success") {
-            ui.message.classList.add("bg-green-500");
-          } else {
-            ui.message.classList.add("bg-red-500");
-          }
-          ui.message.classList.remove("hidden");
-        },
-      };
+        // Start the app
+        checkLoginState();
 
-      // --- Start the app ---
-      app.init();
     </script>
-  </body>
+</body>
 </html>
