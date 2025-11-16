@@ -88,21 +88,52 @@
   </div>
 
 <script>
-  // ----- CONFIG: set your deployed Apps Script Web App URL here -----
-  // Example: https://script.google.com/macros/s/AKfycbx.../exec
+  // ----- CONFIG: set to your deployed Apps Script exec URL -----
   const API_BASE = 'https://script.google.com/macros/s/AKfycbxUaDpqVGqX8DhW1RnRUDJNoKmUe3gIBp0tt3CvKkbOPJzcJ34kLm76ED2Om-ve8C97sQ/exec';
 
+  // JSONP helper (returns Promise)
+  function jsonpFetch(action, body) {
+    body = body || {};
+    var callbackName = 'qb_cb_' + Math.random().toString(36).slice(2);
+    return new Promise(function(resolve, reject) {
+      // build data param as encoded JSON
+      var data = encodeURIComponent(JSON.stringify(body || {}));
+      var url = API_BASE + '?action=' + encodeURIComponent(action) + '&data=' + data + '&callback=' + callbackName;
+      // create global callback
+      window[callbackName] = function(response) {
+        try { resolve(response); } finally { // cleanup
+          try { delete window[callbackName]; } catch(e) {}
+          var s = document.getElementById(callbackName); if (s) s.parentNode.removeChild(s);
+        }
+      };
+      // script tag
+      var s = document.createElement('script');
+      s.id = callbackName;
+      s.src = url;
+      s.onerror = function() {
+        try { delete window[callbackName]; } catch(e) {}
+        if (s && s.parentNode) s.parentNode.removeChild(s);
+        reject(new Error('JSONP network error'));
+      };
+      document.head.appendChild(s);
+    });
+  }
+
+  // Primary apiFetch: try POST fetch; fallback to JSONP if network/CORS fails.
   function apiFetch(action, body) {
-    // body can be object (will be sent as JSON)
     body = body || {};
     body.action = action;
-    // Use POST as default
+    // prefer fetch POST
     return fetch(API_BASE, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
       mode: 'cors'
-    }).then(function(r){ return r.json(); });
+    }).then(function(resp) {
+      return resp.json();
+    }).catch(function(err) {
+      return jsonpFetch(action, body);
+    });
   }
 
   function toast(msg,timeout){
@@ -300,7 +331,6 @@
         document.getElementById('invoiceResult').innerText = 'Invoice created — ID: ' + res.invoiceId;
         toast('Invoice created');
         if (!isMobile && res.downloadUrl) {
-          // attempt automatic download
           try {
             var a = document.createElement('a');
             a.href = res.downloadUrl;
@@ -313,8 +343,6 @@
             if (res.url) window.open(res.url, '_blank');
           }
         } else {
-          // mobile: do nothing (ID shown). Optionally provide button to open preview:
-          // show small open button
           var invoiceArea = document.getElementById('invoiceResult');
           var openBtn = document.createElement('button');
           openBtn.textContent = 'Open PDF';
