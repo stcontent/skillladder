@@ -44,15 +44,10 @@
     <div class="card topbar">
       <div>
         <strong style="font-size:18px">QuickBill</strong>
-        <div class="small">Simple billing — paste your Apps Script Web App URL below</div>
+        <div class="small">Simple billing — connected to Apps Script Web App</div>
       </div>
-      <div style="min-width:300px">
-        <label class="small">Web App URL (Apps Script)</label>
-        <div style="display:flex;gap:8px">
-          <input id="apiUrl" placeholder="https://script.google.com/macros/s/AAA.../exec" style="flex:1">
-          <button onclick="saveApiUrl()">Save URL</button>
-        </div>
-        <div style="margin-top:6px" class="small muted">Saved in browser localStorage</div>
+      <div style="min-width:260px;text-align:right">
+        <div class="small muted">Backend: Apps Script Web App (embedded)</div>
       </div>
     </div>
 
@@ -96,18 +91,8 @@
   </div>
 
 <script>
-  // store/read API URL
-  function saveApiUrl(){
-    var u = document.getElementById('apiUrl').value.trim();
-    if (!u) { localStorage.removeItem('qb_api_url'); toast('Cleared API URL'); return; }
-    localStorage.setItem('qb_api_url', u);
-    toast('API URL saved');
-  }
-  function getApiUrl(){
-    return localStorage.getItem('qb_api_url') || '';
-  }
-  // initialize input
-  document.getElementById('apiUrl').value = getApiUrl();
+  // Hardcoded Apps Script Web App URL (user requested - no textbox)
+  const API_URL = "https://script.google.com/macros/s/AKfycbxUaDpqVGqX8DhW1RnRUDJNoKmUe3gIBp0tt3CvKkbOPJzcJ34kLm76ED2Om-ve8C97sQ/exec";
 
   function toast(msg,timeout){
     var d = document.getElementById('message');
@@ -121,12 +106,12 @@
     var auth = document.getElementById('authArea');
     var me = localStorage.getItem('qb_email');
     if (me){
-      auth.innerHTML = '<div class="small">'+me+' <button onclick="logout()" style="margin-left:8px;padding:6px 8px;border-radius:6px">Logout</button></div>';
+      auth && (auth.innerHTML = '<div class="small">'+me+' <button onclick="logout()" style="margin-left:8px;padding:6px 8px;border-radius:6px">Logout</button></div>');
       document.getElementById('landingView').style.display='none';
       document.getElementById('appView').style.display='block';
       document.getElementById('meEmail').innerText = me;
     } else {
-      auth.innerHTML = '';
+      auth && (auth.innerHTML = '');
       document.getElementById('landingView').style.display='block';
       document.getElementById('appView').style.display='none';
     }
@@ -135,9 +120,7 @@
 
   /* ---------- Helper: POST JSON to Apps Script Web App ---------- */
   async function postJSON(action, body){
-    var base = getApiUrl();
-    if (!base) return { success:false, message: 'Web App URL not set. Paste it at top and Save URL.' };
-    // we will POST JSON with { action: action, ...body }
+    var base = API_URL;
     try {
       var payload = Object.assign({}, body || {}, { action: action });
       var res = await fetch(base, {
@@ -218,7 +201,7 @@
       document.getElementById('p_currency').value = p.currency||'';
       document.getElementById('p_signature').value = p.signature||'';
     } else {
-      // profile may not exist yet - that's fine
+      // profile may not exist yet
     }
   }
   async function saveProfile(){
