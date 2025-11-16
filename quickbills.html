@@ -104,7 +104,7 @@
    * @param {Array} args An array of arguments for the function.
    */
   async function callAppsScript(functionName, args = []) {
-    if (!WEB_APP_URL || WEB_APP_URL === 'https://script.google.com/macros/s/AKfycbxUaDpqVGqX8DhW1RnRUDJNoKmUe3gIBp0tt3CvKkbOPJzcJ34kLm76ED2Om-ve8C97sQ/exec') {
+    if (!WEB_APP_URL || WEB_APP_URL === 'YOUR_DEPLOYED_WEB_APP_URL') {
       console.error('WEB_APP_URL is not set.');
       toast('Configuration Error: Web App URL is not set in Index.html');
       throw new Error('WEB_APP_URL not set');
