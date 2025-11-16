@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>QuickBill (Standalone)</title>
+  <title>QuickBill</title>
   <style>
     :root{--bg:#f7f7f7;--card:#fff;--accent:#111;--muted:#666}
     body{font-family:Inter,Arial,Helvetica,sans-serif;background:var(--bg);margin:0;padding:16px;box-sizing:border-box}
@@ -40,295 +40,221 @@
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="card topbar">
-      <div>
-        <strong style="font-size:18px">QuickBill</strong>
-        <div class="small">Simple billing — connected to Apps Script Web App</div>
-      </div>
-      <div style="min-width:260px;text-align:right">
-        <div class="small muted">Backend: Apps Script Web App (embedded)</div>
-      </div>
+<div class="container">
+  <div class="card topbar">
+    <div>
+      <strong style="font-size:18px">QuickBill</strong><div class="small">Simple billing with Easy and Friendly Interface</div>
     </div>
-
-    <div id="main" class="card">
-      <div id="landingView">
-        <div class="row">
-          <div>
-            <h3>Signup</h3>
-            <input id="signupEmail" placeholder="Enter your email" autocomplete="email">
-            <div class="actions">
-              <button onclick="sendSignupCode()">Send Signup Code</button>
-            </div>
-            <div id="signupArea" style="margin-top:8px"></div>
-          </div>
-          <div>
-            <h3>Login</h3>
-            <input id="loginEmail" placeholder="Enter your email" autocomplete="email">
-            <div class="actions">
-              <button onclick="sendLoginCode()">Send Login Code</button>
-            </div>
-            <div id="loginArea" style="margin-top:8px"></div>
-          </div>
-        </div>
-      </div>
-
-      <div id="appView" style="display:none">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
-          <div><strong>Dashboard</strong><div class="small">Logged in as <span id="meEmail"></span></div></div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button onclick="showProfile()">Profile</button>
-            <button onclick="showNewInvoice()">Create Invoice</button>
-            <button onclick="logout()">Logout</button>
-          </div>
-        </div>
-
-        <div id="contentArea" style="margin-top:12px"></div>
-      </div>
-    </div>
-
-    <div id="message" style="position:fixed;right:18px;bottom:18px;display:none"></div>
+    <div id="authArea"></div>
   </div>
 
+  <div id="main" class="card">
+    <div id="landingView">
+      <div class="row">
+        <div>
+          <h3>Signup</h3>
+          <input id="signupEmail" placeholder="Enter your email" autocomplete="email">
+          <div class="actions">
+            <button onclick="sendSignupCode()">Send Signup Code</button>
+          </div>
+          <div id="signupArea" style="margin-top:8px"></div>
+        </div>
+        <div>
+          <h3>Login</h3>
+          <input id="loginEmail" placeholder="Enter your email" autocomplete="email">
+          <div class="actions">
+            <button onclick="sendLoginCode()">Send Login Code</button>
+          </div>
+          <div id="loginArea" style="margin-top:8px"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="appView" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+        <div><strong>Dashboard</strong><div class="small">Logged in as <span id="meEmail"></span></div></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button onclick="showProfile()">Profile</button>
+          <button onclick="showNewInvoice()">Create Invoice</button>
+          <button onclick="logout()">Logout</button>
+        </div>
+      </div>
+      <div id="contentArea" style="margin-top:12px"></div>
+    </div>
+  </div>
+
+  <div id="message" style="position:fixed;right:18px;bottom:18px;display:none"></div>
+</div>
+
 <script>
-  // Hardcoded Apps Script Web App URL (user requested - no textbox)
-  const API_URL = "https://script.google.com/macros/s/AKfycbxUaDpqVGqX8DhW1RnRUDJNoKmUe3gIBp0tt3CvKkbOPJzcJ34kLm76ED2Om-ve8C97sQ/exec";
+const BASE_URL = 'https://script.google.com/macros/s/AKfycbxUaDpqVGqX8DhW1RnRUDJNoKmUe3gIBp0tt3CvKkbOPJzcJ34kLm76ED2Om-ve8C97sQ/exec';
 
-  function toast(msg,timeout){
-    var d = document.getElementById('message');
-    d.innerHTML = '<div class="toast">'+msg+'</div>';
-    d.style.display = 'block';
-    if (timeout===undefined) timeout = 3000;
-    setTimeout(function(){ d.style.display='none'; }, timeout);
-  }
+function toast(msg,timeout){
+  var d = document.getElementById('message');
+  d.innerHTML = '<div class="toast">'+msg+'</div>';
+  d.style.display = 'block';
+  if (timeout===undefined) timeout = 3000;
+  setTimeout(function(){ d.style.display='none'; }, timeout);
+}
 
-  function setAuthArea(){
-    var auth = document.getElementById('authArea');
-    var me = localStorage.getItem('qb_email');
-    if (me){
-      auth && (auth.innerHTML = '<div class="small">'+me+' <button onclick="logout()" style="margin-left:8px;padding:6px 8px;border-radius:6px">Logout</button></div>');
-      document.getElementById('landingView').style.display='none';
-      document.getElementById('appView').style.display='block';
-      document.getElementById('meEmail').innerText = me;
-    } else {
-      auth && (auth.innerHTML = '');
-      document.getElementById('landingView').style.display='block';
-      document.getElementById('appView').style.display='none';
-    }
+function setAuthArea(){
+  var auth = document.getElementById('authArea');
+  var me = localStorage.getItem('qb_email');
+  if (me){
+    auth.innerHTML = '<div class="small">'+me+' <button onclick="logout()" style="margin-left:8px;padding:6px 8px;border-radius:6px">Logout</button></div>';
+    document.getElementById('landingView').style.display='none';
+    document.getElementById('appView').style.display='block';
+    document.getElementById('meEmail').innerText = me;
+  } else {
+    auth.innerHTML = '';
+    document.getElementById('landingView').style.display='block';
+    document.getElementById('appView').style.display='none';
   }
-  setAuthArea();
+}
+setAuthArea();
 
-  /* ---------- Helper: POST JSON to Apps Script Web App ---------- */
-  async function postJSON(action, body){
-    var base = API_URL;
-    try {
-      var payload = Object.assign({}, body || {}, { action: action });
-      var res = await fetch(base, {
-        method: 'POST',
-        mode: 'cors',
-        cache: 'no-cache',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      var text = await res.text();
-      try { return JSON.parse(text); } catch (e) { return { success:false, message: 'Invalid JSON response from server', raw: text }; }
-    } catch (e) {
-      return { success:false, message: 'Network error: ' + e.message };
-    }
-  }
+/* --- Helpers --- */
+async function runAppsScript(funcName, ...args){
+  try{
+    let res = await fetch(BASE_URL+'?func='+funcName+'&args='+encodeURIComponent(JSON.stringify(args)));
+    return await res.json();
+  } catch(e){ toast('Network error: '+e.message); return {success:false,message:e.message}; }
+}
 
-  /* Signup */
-  async function sendSignupCode(){
-    var email = document.getElementById('signupEmail').value.trim();
-    if (!email) return toast('Enter email');
-    var res = await postJSON('sendSignupCode', { email: email });
-    if (res.success){
-      document.getElementById('signupArea').innerHTML = '<div class="row"><input id="signupCode" placeholder="Enter signup code"><button onclick="verifySignupCode()">Verify</button></div>';
-      toast(res.message || 'Signup code sent');
-    } else toast(res.message || 'Failed');
-  }
-  async function verifySignupCode(){
-    var email = document.getElementById('signupEmail').value.trim();
-    var code = document.getElementById('signupCode').value.trim();
-    if (!code) return toast('Enter code');
-    var res = await postJSON('verifySignupCode', { email: email, code: code });
-    if (res.success){
-      toast('Signup complete');
-      localStorage.setItem('qb_email', email);
-      setAuthArea();
-    } else toast(res.message || 'Verification failed');
-  }
+/* --- Signup/Login --- */
+async function sendSignupCode(){
+  const email = document.getElementById('signupEmail').value.trim();
+  if(!email) return toast('Enter email');
+  const res = await runAppsScript('sendSignupCode', email);
+  if(res.success){
+    document.getElementById('signupArea').innerHTML = '<div class="row"><input id="signupCode" placeholder="Enter signup code"><button onclick="verifySignupCode()">Verify</button></div>';
+    toast(res.message);
+  } else toast(res.message);
+}
 
-  /* Login */
-  async function sendLoginCode(){
-    var email = document.getElementById('loginEmail').value.trim();
-    if (!email) return toast('Enter email');
-    var res = await postJSON('sendLoginCode', { email: email });
-    if (res.success){
-      document.getElementById('loginArea').innerHTML = '<div class="row"><input id="loginCode" placeholder="Enter login code"><button onclick="verifyLoginCode()">Verify</button></div>';
-      toast(res.message || 'Login code sent');
-    } else toast(res.message || 'Failed');
-  }
-  async function verifyLoginCode(){
-    var email = document.getElementById('loginEmail').value.trim();
-    var code = document.getElementById('loginCode').value.trim();
-    if (!code) return toast('Enter code');
-    var res = await postJSON('verifyLoginCode', { email: email, code: code });
-    if (res.success){
-      localStorage.setItem('qb_email', email);
-      setAuthArea();
-      toast('Login successful');
-    } else toast(res.message || 'Verification failed');
-  }
-
-  function logout(){
-    localStorage.removeItem('qb_email');
+async function verifySignupCode(){
+  const email = document.getElementById('signupEmail').value.trim();
+  const code = document.getElementById('signupCode').value.trim();
+  if(!code) return toast('Enter code');
+  const res = await runAppsScript('verifySignupCode', email, code);
+  if(res.success){
+    toast('Signup complete');
+    localStorage.setItem('qb_email', email);
     setAuthArea();
-    toast('Logged out');
-  }
+  } else toast(res.message);
+}
 
-  /* Profile */
-  async function showProfile(){
-    var email = localStorage.getItem('qb_email'); if (!email) return toast('Not logged in');
-    var content = document.getElementById('contentArea');
-    content.innerHTML = '<h3>Profile</h3><div class="row"><div><input id="p_shop" placeholder="Shop Name"></div><div><input id="p_contact" placeholder="Contact"></div></div><div style="margin-top:8px"><textarea id="p_address" placeholder="Address" rows="3"></textarea></div><div class="row" style="margin-top:8px"><div><input id="p_currency" placeholder="Currency (e.g. USD or $ or any other)"></div><div><input id="p_signature" placeholder="Signature text"></div></div><div class="actions" style="margin-top:8px"><button onclick="saveProfile()">Save Profile</button></div><div id="profileStatus" style="margin-top:8px"></div>';
-    var res = await postJSON('loadProfile', { email: email });
-    if (res.success && res.profile){
-      var p = res.profile;
-      document.getElementById('p_shop').value = p.shopName||'';
-      document.getElementById('p_contact').value = p.contact||'';
-      document.getElementById('p_address').value = p.address||'';
-      document.getElementById('p_currency').value = p.currency||'';
-      document.getElementById('p_signature').value = p.signature||'';
-    } else {
-      // profile may not exist yet
+async function sendLoginCode(){
+  const email = document.getElementById('loginEmail').value.trim();
+  if(!email) return toast('Enter email');
+  const res = await runAppsScript('sendLoginCode', email);
+  if(res.success){
+    document.getElementById('loginArea').innerHTML = '<div class="row"><input id="loginCode" placeholder="Enter login code"><button onclick="verifyLoginCode()">Verify</button></div>';
+    toast(res.message);
+  } else toast(res.message);
+}
+
+async function verifyLoginCode(){
+  const email = document.getElementById('loginEmail').value.trim();
+  const code = document.getElementById('loginCode').value.trim();
+  if(!code) return toast('Enter code');
+  const res = await runAppsScript('verifyLoginCode', email, code);
+  if(res.success){
+    localStorage.setItem('qb_email', email);
+    setAuthArea();
+    toast('Login successful');
+  } else toast(res.message);
+}
+
+function logout(){
+  localStorage.removeItem('qb_email');
+  setAuthArea();
+  toast('Logged out');
+}
+
+/* --- Profile --- */
+async function showProfile(){
+  const email = localStorage.getItem('qb_email'); if(!email) return toast('Not logged in');
+  const content = document.getElementById('contentArea');
+  content.innerHTML = '<h3>Profile</h3><div class="row"><div><input id="p_shop" placeholder="Shop Name"></div><div><input id="p_contact" placeholder="Contact"></div></div><div style="margin-top:8px"><textarea id="p_address" placeholder="Address" rows="3"></textarea></div><div class="row" style="margin-top:8px"><div><input id="p_currency" placeholder="Currency"></div><div><input id="p_signature" placeholder="Signature text"></div></div><div class="actions" style="margin-top:8px"><button onclick="saveProfile()">Save Profile</button></div><div id="profileStatus" style="margin-top:8px"></div>';
+  const res = await runAppsScript('loadProfile', email);
+  if(res.success){
+    const p=res.profile;
+    document.getElementById('p_shop').value = p.shopName||'';
+    document.getElementById('p_contact').value = p.contact||'';
+    document.getElementById('p_address').value = p.address||'';
+    document.getElementById('p_currency').value = p.currency||'';
+    document.getElementById('p_signature').value = p.signature||'';
+  }
+}
+
+async function saveProfile(){
+  const email = localStorage.getItem('qb_email'); if(!email) return toast('Not logged in');
+  const profile = {
+    shopName: document.getElementById('p_shop').value.trim(),
+    contact: document.getElementById('p_contact').value.trim(),
+    address: document.getElementById('p_address').value.trim(),
+    currency: document.getElementById('p_currency').value.trim(),
+    signature: document.getElementById('p_signature').value.trim()
+  };
+  const res = await runAppsScript('saveProfile', email, profile);
+  toast(res.success?'Profile saved':res.message);
+}
+
+/* --- Invoice --- */
+async function showNewInvoice(){
+  const email = localStorage.getItem('qb_email'); if(!email) return toast('Not logged in');
+  const content = document.getElementById('contentArea');
+  content.innerHTML='<h3>New Invoice</h3><div><input id="custName" placeholder="Customer Name"></div><div style="margin-top:8px" class="actions"><button onclick="addItemRow()">Add Item</button><button onclick="previewInvoice()">Preview</button><button onclick="generateInvoice()">Generate PDF</button></div><div id="itemsWrap" style="margin-top:12px" class="scrollable"><table id="itemsTable"><thead><tr><th>#</th><th>Item</th><th>Qty</th><th>Rate</th><th>Discount</th><th>Type</th><th>Action</th></tr></thead><tbody></tbody></table></div><div id="previewArea" style="margin-top:12px"></div><div id="invoiceResult" style="margin-top:10px"></div>';
+  addItemRow();
+}
+
+function addItemRow(item){
+  const tbody=document.querySelector('#itemsTable tbody');
+  const idx=tbody.rows.length+1;
+  const tr=document.createElement('tr');
+  tr.innerHTML='<td>'+idx+'</td>'
+    +'<td><input class="it_name" value="'+(item?escapeHtml(item.name):'')+'"></td>'
+    +'<td><input class="it_qty" type="number" min="0" value="'+(item?item.qty:1)+'"></td>'
+    +'<td><input class="it_rate" type="number" min="0" step="0.01" value="'+(item?item.rate:0)+'"></td>'
+    +'<td><input class="it_disc" type="number" min="0" step="0.01" value="'+(item?item.discount:0)+'"></td>'
+    +'<td><select class="it_dtype"><option value="flat">Flat</option><option value="percent">Percent</option></select></td>'
+    +'<td><button onclick="removeItem(this)">Remove</button></td>';
+  tbody.appendChild(tr);
+  if(item&&item.discountType) tr.querySelector('.it_dtype').value=item.discountType;
+}
+
+function removeItem(btn){ btn.closest('tr').remove(); rebuildIdx(); }
+function rebuildIdx(){ document.querySelectorAll('#itemsTable tbody tr').forEach((r,i)=>r.cells[0].innerText=i+1); }
+
+async function previewInvoice(){
+  const email=localStorage.getItem('qb_email'); if(!email) return toast('Not logged in');
+  const cust=document.getElementById('custName').value.trim(); if(!cust) return toast('Enter customer name');
+  const rows=document.querySelectorAll('#itemsTable tbody tr'); if(!rows.length) return toast('Add at least one item');
+  const items=[]; for(const r of rows){ const name=r.querySelector('.it_name').value.trim(); const qty=+r.querySelector('.it_qty').value||0; const rate=+r.querySelector('.it_rate').value||0; const disc=+r.querySelector('.it_disc').value||0; const dtype=r.querySelector('.it_dtype').value; if(!name) return toast('Item name required'); items.push({name,qty,rate,discount:disc,discountType:dtype}); }
+  const res=await runAppsScript('getInvoiceHtml', email, {customerName:cust,items});
+  if(res.success) document.getElementById('previewArea').innerHTML='<iframe srcdoc="'+escapeAttr(res.html)+'" style="width:100%;height:680px;border:0;"></iframe>';
+  else toast(res.message||'Failed to render preview');
+}
+
+async function generateInvoice(){
+  const email=localStorage.getItem('qb_email'); if(!email) return toast('Not logged in');
+  const cust=document.getElementById('custName').value.trim(); if(!cust) return toast('Enter customer name');
+  const rows=document.querySelectorAll('#itemsTable tbody tr'); if(!rows.length) return toast('Add at least one item');
+  const items=[]; for(const r of rows){ const name=r.querySelector('.it_name').value.trim(); const qty=+r.querySelector('.it_qty').value||0; const rate=+r.querySelector('.it_rate').value||0; const disc=+r.querySelector('.it_disc').value||0; const dtype=r.querySelector('.it_dtype').value; if(!name) return toast('Item name required'); items.push({name,qty,rate,discount:disc,discountType:dtype}); }
+  const res=await runAppsScript('generateInvoicePDF', email, {customerName:cust,items});
+  if(res.success){
+    document.getElementById('invoiceResult').innerText='Invoice created — ID: '+res.invoiceId;
+    toast('Invoice created');
+    if(!(/Mobi|Android|iPhone|iPad/.test(navigator.userAgent)||window.innerWidth<=800)&&res.downloadUrl){
+      const a=document.createElement('a'); a.href=res.downloadUrl; a.download='invoice_'+res.invoiceId+'.pdf'; a.style.display='none'; document.body.appendChild(a); a.click(); setTimeout(()=>document.body.removeChild(a),1000);
     }
-  }
-  async function saveProfile(){
-    var email = localStorage.getItem('qb_email'); if (!email) return toast('Not logged in');
-    var profile = {
-      shopName: document.getElementById('p_shop').value.trim(),
-      contact: document.getElementById('p_contact').value.trim(),
-      address: document.getElementById('p_address').value.trim(),
-      currency: document.getElementById('p_currency').value.trim(),
-      signature: document.getElementById('p_signature').value.trim()
-    };
-    var res = await postJSON('saveProfile', { email: email, profile: profile });
-    if (res.success) toast('Profile saved'); else toast(res.message || 'Save failed');
-  }
+  } else toast(res.message||'Failed to create invoice');
+}
 
-  /* Invoicing UI */
-  function showNewInvoice(){
-    var email = localStorage.getItem('qb_email'); if (!email) return toast('Not logged in');
-    var content = document.getElementById('contentArea');
-    content.innerHTML = '<h3>New Invoice</h3><div><input id="custName" placeholder="Customer Name"></div><div style="margin-top:8px" class="actions"><button onclick="addItemRow()">Add Item</button><button onclick="previewInvoice()">Preview</button><button onclick="generateInvoice()">Generate PDF</button></div><div id="itemsWrap" style="margin-top:12px" class="scrollable"><table id="itemsTable"><thead><tr><th style="width:6%">#</th><th>Item</th><th style="width:12%">Qty</th><th style="width:12%">Rate</th><th style="width:12%">Discount</th><th style="width:12%">Type</th><th style="width:10%">Action</th></tr></thead><tbody></tbody></table></div><div id="previewArea" style="margin-top:12px"></div><div id="invoiceResult" style="margin-top:10px"></div>';
-    addItemRow();
-  }
-
-  function addItemRow(item){
-    var tbody = document.querySelector('#itemsTable tbody');
-    var idx = tbody.rows.length + 1;
-    var tr = document.createElement('tr');
-
-    tr.innerHTML = '<td class="num"><div class="label">#</div><div>' + idx + '</div></td>'
-      +'<td><div class="label">Item</div><input class="it_name" value="'+(item?escapeHtml(item.name):'')+'"></td>'
-      +'<td><div class="label">Qty</div><input class="it_qty" type="number" min="0" value="'+(item?item.qty:1)+'"></td>'
-      +'<td><div class="label">Rate</div><input class="it_rate" type="number" min="0" step="0.01" value="'+(item?item.rate:0)+'"></td>'
-      +'<td><div class="label">Discount</div><input class="it_disc" type="number" min="0" step="0.01" value="'+(item?item.discount:0)+'"></td>'
-      +'<td><div class="label">Type</div><select class="it_dtype"><option value="flat">Flat</option><option value="percent">Percent</option></select></td>'
-      +'<td><div class="label">Action</div><button type="button" onclick="removeItem(this)">Remove</button></td>';
-    tbody.appendChild(tr);
-    if (item && item.discountType) tr.querySelector('.it_dtype').value = item.discountType;
-  }
-
-  function removeItem(btn){
-    var tr = btn.closest('tr');
-    if (!tr) return;
-    tr.parentNode.removeChild(tr);
-    rebuildIdx();
-  }
-
-  function rebuildIdx(){
-    var rows = document.querySelectorAll('#itemsTable tbody tr');
-    rows.forEach(function(r,i){ r.querySelector('.num div:last-child').innerText = i+1; });
-  }
-
-  /* Preview */
-  async function previewInvoice(){
-    var email = localStorage.getItem('qb_email'); if (!email) return toast('Not logged in');
-    var cust = document.getElementById('custName').value.trim();
-    if (!cust) return toast('Enter customer name');
-    var rows = document.querySelectorAll('#itemsTable tbody tr');
-    if (!rows.length) return toast('Add at least one item');
-    var items = [];
-    for (var i=0;i<rows.length;i++){
-      var r = rows[i];
-      var name = r.querySelector('.it_name').value.trim();
-      var qty = Number(r.querySelector('.it_qty').value)||0;
-      var rate = Number(r.querySelector('.it_rate').value)||0;
-      var disc = Number(r.querySelector('.it_disc').value)||0;
-      var dtype = r.querySelector('.it_dtype').value;
-      if (!name) return toast('Item name required');
-      items.push({name:name,qty:qty,rate:rate,discount:disc,discountType:dtype});
-    }
-    var invoiceObj = {customerName: cust, items: items};
-    var res = await postJSON('getInvoiceHtml', { email: email, invoiceObj: invoiceObj });
-    if (res.success && res.html){
-      var previewArea = document.getElementById('previewArea');
-      previewArea.innerHTML = '<div style="border:1px solid #eee;border-radius:8px;overflow:hidden"><iframe id="previewFrame" srcdoc="'+escapeAttr(res.html)+'" style="width:100%;height:680px;border:0;"></iframe></div>';
-      toast('Preview generated');
-    } else {
-      toast(res.message || 'Failed to render preview');
-    }
-  }
-
-  /* Generate: uses downloadUrl if backend provides it */
-  async function generateInvoice(){
-    var email = localStorage.getItem('qb_email'); if (!email) return toast('Not logged in');
-    var cust = document.getElementById('custName').value.trim();
-    if (!cust) return toast('Enter customer name');
-    var rows = document.querySelectorAll('#itemsTable tbody tr');
-    if (!rows.length) return toast('Add at least one item');
-    var items = [];
-    for (var i=0;i<rows.length;i++){
-      var r = rows[i];
-      var name = r.querySelector('.it_name').value.trim();
-      var qty = Number(r.querySelector('.it_qty').value)||0;
-      var rate = Number(r.querySelector('.it_rate').value)||0;
-      var disc = Number(r.querySelector('.it_disc').value)||0;
-      var dtype = r.querySelector('.it_dtype').value;
-      if (!name) return toast('Item name required');
-      items.push({name:name,qty:qty,rate:rate,discount:disc,discountType:dtype});
-    }
-    var invoiceObj = {customerName: cust, items: items};
-    var res = await postJSON('generateInvoicePDF', { email: email, invoiceObj: invoiceObj });
-    if (res.success){
-      var isMobile = /Mobi|Android|iPhone|iPad/.test(navigator.userAgent) || window.innerWidth <= 800;
-      document.getElementById('invoiceResult').innerText = 'Invoice created — ID: ' + (res.invoiceId || '');
-      toast('Invoice created');
-      if (!isMobile && res.downloadUrl){
-        try {
-          var a = document.createElement('a');
-          a.href = res.downloadUrl;
-          a.download = 'invoice_' + (res.invoiceId || 'invoice') + '.pdf';
-          a.style.display = 'none';
-          document.body.appendChild(a);
-          a.click();
-          setTimeout(function(){ document.body.removeChild(a); }, 1000);
-        } catch (e) {
-          if (res.url) window.open(res.url, '_blank');
-        }
-      } else {
-        if (res.url) window.open(res.url, '_blank');
-      }
-    } else {
-      toast(res.message || 'Failed to create invoice');
-    }
-  }
-
-  /* helpers */
-  function escapeHtml(s){ if (!s && s !== 0) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-  function escapeAttr(s){ return escapeHtml(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+/* --- helpers --- */
+function escapeHtml(s){ if(!s&&s!==0) return''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escapeAttr(s){ return escapeHtml(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 </script>
 </body>
 </html>
