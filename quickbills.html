@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>QuickBill (External)</title>
+  <title>QuickBill (GitHub Pages)</title>
   <style>
     :root{--bg:#f7f7f7;--card:#fff;--accent:#111;--muted:#666}
     body{font-family:Inter,Arial,Helvetica,sans-serif;background:var(--bg);margin:0;padding:16px;box-sizing:border-box}
@@ -43,7 +43,7 @@
   <div class="container">
     <div class="card topbar">
       <div>
-        <strong style="font-size:18px">QuickBill</strong><div class="small">External client (uses Apps Script API)</div>
+        <strong style="font-size:18px">QuickBill</strong><div class="small">GitHub Pages client (JSONP)</div>
       </div>
       <div id="authArea"></div>
     </div>
@@ -88,55 +88,57 @@
   </div>
 
 <script>
-  // ----- CONFIG: set to your deployed Apps Script exec URL -----
+  // ---------------- CONFIG ----------------
+  // Your Apps Script web app exec URL (you provided this)
   const API_BASE = 'https://script.google.com/macros/s/AKfycbxUaDpqVGqX8DhW1RnRUDJNoKmUe3gIBp0tt3CvKkbOPJzcJ34kLm76ED2Om-ve8C97sQ/exec';
 
-  // JSONP helper (returns Promise)
-  function jsonpFetch(action, body) {
+  // ---------------- JSONP (all calls) ----------------
+  // JSONP helper (returns Promise). Uses `data` param with encoded JSON.
+  function jsonpFetch(action, body, timeoutMs) {
     body = body || {};
     var callbackName = 'qb_cb_' + Math.random().toString(36).slice(2);
+    timeoutMs = timeoutMs || 20000; // default 20s
     return new Promise(function(resolve, reject) {
-      // build data param as encoded JSON
-      var data = encodeURIComponent(JSON.stringify(body || {}));
-      var url = API_BASE + '?action=' + encodeURIComponent(action) + '&data=' + data + '&callback=' + callbackName;
-      // create global callback
-      window[callbackName] = function(response) {
-        try { resolve(response); } finally { // cleanup
-          try { delete window[callbackName]; } catch(e) {}
-          var s = document.getElementById(callbackName); if (s) s.parentNode.removeChild(s);
+      try {
+        var data = encodeURIComponent(JSON.stringify(body || {}));
+        var url = API_BASE + '?action=' + encodeURIComponent(action) + '&data=' + data + '&callback=' + callbackName;
+        var timer = setTimeout(function(){
+          cleanup();
+          reject(new Error('JSONP timeout'));
+        }, timeoutMs);
+
+        window[callbackName] = function(response) {
+          clearTimeout(timer);
+          cleanup();
+          resolve(response);
+        };
+
+        function cleanup(){
+          try { delete window[callbackName]; } catch(e){}
+          var s = document.getElementById(callbackName); if (s && s.parentNode) s.parentNode.removeChild(s);
         }
-      };
-      // script tag
-      var s = document.createElement('script');
-      s.id = callbackName;
-      s.src = url;
-      s.onerror = function() {
-        try { delete window[callbackName]; } catch(e) {}
-        if (s && s.parentNode) s.parentNode.removeChild(s);
-        reject(new Error('JSONP network error'));
-      };
-      document.head.appendChild(s);
+
+        var s = document.createElement('script');
+        s.id = callbackName;
+        s.src = url;
+        s.onerror = function() {
+          clearTimeout(timer);
+          cleanup();
+          reject(new Error('JSONP network error'));
+        };
+        document.head.appendChild(s);
+      } catch (err) { reject(err); }
     });
   }
 
-  // Primary apiFetch: try POST fetch; fallback to JSONP if network/CORS fails.
-  function apiFetch(action, body) {
-    body = body || {};
-    body.action = action;
-    // prefer fetch POST
-    return fetch(API_BASE, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      mode: 'cors'
-    }).then(function(resp) {
-      return resp.json();
-    }).catch(function(err) {
-      return jsonpFetch(action, body);
-    });
+  // For very small calls we can use a short helper wrapper
+  function apiCall(action, payload) {
+    // NOTE: we intentionally ALWAYS use JSONP to avoid CORS issues on GitHub Pages.
+    return jsonpFetch(action, payload);
   }
 
-  function toast(msg,timeout){
+  // ---------------- UI + logic (same flow as before) ----------------
+  function toast(msg, timeout){
     var d = document.getElementById('message');
     d.innerHTML = '<div class="toast">'+msg+'</div>';
     d.style.display = 'block';
@@ -164,48 +166,48 @@
   function sendSignupCode(){
     var email = document.getElementById('signupEmail').value.trim();
     if (!email) return toast('Enter email');
-    apiFetch('sendSignupCode', { email: email }).then(function(res){
-      if (res.success){
+    apiCall('sendSignupCode', { email: email }).then(function(res){
+      if (res && res.success){
         document.getElementById('signupArea').innerHTML = '<div class="row"><input id="signupCode" placeholder="Enter signup code"><button onclick="verifySignupCode()">Verify</button></div>';
-        toast(res.message);
-      } else toast(res.message);
-    }).catch(function(err){ toast('Network error'); console.error(err); });
+        toast(res.message || 'Code sent');
+      } else toast((res && res.message) || 'Error sending signup code');
+    }).catch(function(err){ toast('Network error (JSONP)'); console.error(err); });
   }
   function verifySignupCode(){
     var email = document.getElementById('signupEmail').value.trim();
     var code = document.getElementById('signupCode').value.trim();
     if (!code) return toast('Enter code');
-    apiFetch('verifySignupCode', { email: email, code: code }).then(function(res){
-      if (res.success){
+    apiCall('verifySignupCode', { email: email, code: code }).then(function(res){
+      if (res && res.success){
         toast('Signup complete');
         localStorage.setItem('qb_email', email);
         setAuthArea();
-      } else toast(res.message);
-    }).catch(function(err){ toast('Network error'); console.error(err); });
+      } else toast((res && res.message) || 'Invalid code');
+    }).catch(function(err){ toast('Network error (JSONP)'); console.error(err); });
   }
 
   /* Login */
   function sendLoginCode(){
     var email = document.getElementById('loginEmail').value.trim();
     if (!email) return toast('Enter email');
-    apiFetch('sendLoginCode', { email: email }).then(function(res){
-      if (res.success){
+    apiCall('sendLoginCode', { email: email }).then(function(res){
+      if (res && res.success){
         document.getElementById('loginArea').innerHTML = '<div class="row"><input id="loginCode" placeholder="Enter login code"><button onclick="verifyLoginCode()">Verify</button></div>';
-        toast(res.message);
-      } else toast(res.message);
-    }).catch(function(err){ toast('Network error'); console.error(err); });
+        toast(res.message || 'Code sent');
+      } else toast((res && res.message) || 'Error sending login code');
+    }).catch(function(err){ toast('Network error (JSONP)'); console.error(err); });
   }
   function verifyLoginCode(){
     var email = document.getElementById('loginEmail').value.trim();
     var code = document.getElementById('loginCode').value.trim();
     if (!code) return toast('Enter code');
-    apiFetch('verifyLoginCode', { email: email, code: code }).then(function(res){
-      if (res.success){
+    apiCall('verifyLoginCode', { email: email, code: code }).then(function(res){
+      if (res && res.success){
         localStorage.setItem('qb_email', email);
         setAuthArea();
         toast('Login successful');
-      } else toast(res.message);
-    }).catch(function(err){ toast('Network error'); console.error(err); });
+      } else toast((res && res.message) || 'Invalid code');
+    }).catch(function(err){ toast('Network error (JSONP)'); console.error(err); });
   }
 
   function logout(){
@@ -219,16 +221,18 @@
     var email = localStorage.getItem('qb_email'); if (!email) return toast('Not logged in');
     var content = document.getElementById('contentArea');
     content.innerHTML = '<h3>Profile</h3><div class="row"><div><input id="p_shop" placeholder="Shop Name"></div><div><input id="p_contact" placeholder="Contact"></div></div><div style="margin-top:8px"><textarea id="p_address" placeholder="Address" rows="3"></textarea></div><div class="row" style="margin-top:8px"><div><input id="p_currency" placeholder="Currency (e.g. PKR or Rs)"></div><div><input id="p_signature" placeholder="Signature text"></div></div><div class="actions" style="margin-top:8px"><button onclick="saveProfile()">Save Profile</button></div><div id="profileStatus" style="margin-top:8px"></div>';
-    apiFetch('loadProfile', { email: email }).then(function(res){
-      if (res.success){
-        var p = res.profile;
+    apiCall('loadProfile', { email: email }).then(function(res){
+      if (res && res.success){
+        var p = res.profile || {};
         document.getElementById('p_shop').value = p.shopName||'';
         document.getElementById('p_contact').value = p.contact||'';
         document.getElementById('p_address').value = p.address||'';
         document.getElementById('p_currency').value = p.currency||'';
         document.getElementById('p_signature').value = p.signature||'';
+      } else {
+        // no profile yet — leave blank
       }
-    }).catch(function(err){ toast('Network error'); console.error(err); });
+    }).catch(function(err){ toast('Network error (JSONP)'); console.error(err); });
   }
   function saveProfile(){
     var email = localStorage.getItem('qb_email'); if (!email) return toast('Not logged in');
@@ -239,9 +243,9 @@
       currency: document.getElementById('p_currency').value.trim(),
       signature: document.getElementById('p_signature').value.trim()
     };
-    apiFetch('saveProfile', { email: email, profile: profile }).then(function(res){
-      if (res.success) toast('Profile saved'); else toast(res.message);
-    }).catch(function(err){ toast('Network error'); console.error(err); });
+    apiCall('saveProfile', { email: email, profile: profile }).then(function(res){
+      if (res && res.success) toast('Profile saved'); else toast((res && res.message) || 'Error saving profile');
+    }).catch(function(err){ toast('Network error (JSONP)'); console.error(err); });
   }
 
   /* Invoice UI */
@@ -278,7 +282,7 @@
     rows.forEach(function(r,i){ r.querySelector('.num div:last-child').innerText = i+1; });
   }
 
-  /* Preview */
+  /* Preview (uses server-side HTML) */
   function previewInvoice(){
     var email = localStorage.getItem('qb_email'); if (!email) return toast('Not logged in');
     var cust = document.getElementById('custName').value.trim();
@@ -297,16 +301,17 @@
       items.push({name:name,qty:qty,rate:rate,discount:disc,discountType:dtype});
     }
     var invoiceObj = {customerName: cust, items: items};
-    apiFetch('getInvoiceHtml', { email: email, invoiceObj: invoiceObj }).then(function(res){
-      if (res.success){
+    // JSONP call (server returns HTML)
+    apiCall('getInvoiceHtml', { email: email, invoiceObj: invoiceObj }).then(function(res){
+      if (res && res.success){
         var previewArea = document.getElementById('previewArea');
         previewArea.innerHTML = '<div style="border:1px solid #eee;border-radius:8px;overflow:hidden"><iframe id="previewFrame" srcdoc="'+escapeAttr(res.html)+'" style="width:100%;height:680px;border:0;"></iframe></div>';
         toast('Preview generated');
-      } else toast(res.message || 'Failed to render preview');
-    }).catch(function(err){ toast('Network error'); console.error(err); });
+      } else toast((res && res.message) || 'Failed to render preview');
+    }).catch(function(err){ toast('Network error (JSONP)'); console.error(err); });
   }
 
-  /* Generate: auto-download on desktop, show ID on mobile */
+  /* Generate: JSONP call to create PDF (server will set public sharing) */
   function generateInvoice(){
     var email = localStorage.getItem('qb_email'); if (!email) return toast('Not logged in');
     var cust = document.getElementById('custName').value.trim();
@@ -325,8 +330,10 @@
       items.push({name:name,qty:qty,rate:rate,discount:disc,discountType:dtype});
     }
     var invoiceObj = {customerName: cust, items: items};
-    apiFetch('generateInvoicePDF', { email: email, invoiceObj: invoiceObj }).then(function(res){
-      if (res.success){
+    // IMPORTANT: JSONP sends data in URL — if you have many items this URL may become too long.
+    // If you hit URL-length issues, see the notes below for alternatives.
+    apiCall('generateInvoicePDF', { email: email, invoiceObj: invoiceObj }).then(function(res){
+      if (res && res.success){
         var isMobile = /Mobi|Android|iPhone|iPad/.test(navigator.userAgent) || window.innerWidth <= 800;
         document.getElementById('invoiceResult').innerText = 'Invoice created — ID: ' + res.invoiceId;
         toast('Invoice created');
@@ -350,12 +357,21 @@
           openBtn.onclick = function(){ if (res.url) window.open(res.url, '_blank'); };
           invoiceArea.appendChild(openBtn);
         }
-      } else toast(res.message || 'Failed to create invoice');
-    }).catch(function(err){ toast('Network error'); console.error(err); });
+      } else toast((res && res.message) || 'Failed to create invoice');
+    }).catch(function(err){ toast('Network error (JSONP)'); console.error(err); });
   }
 
+  /* utilities */
   function escapeHtml(s){ if (!s && s !== 0) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   function escapeAttr(s){ return escapeHtml(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+  // small helper: load dashboard if already logged in
+  (function(){
+    if (localStorage.getItem('qb_email')) {
+      setAuthArea();
+      // optionally auto-open profile or new invoice
+    }
+  })();
 </script>
 </body>
 </html>
