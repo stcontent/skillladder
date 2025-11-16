@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>QuickBill (GitHub Pages)</title>
+  <title>QuickBill (Standalone)</title>
   <style>
     :root{--bg:#f7f7f7;--card:#fff;--accent:#111;--muted:#666}
     body{font-family:Inter,Arial,Helvetica,sans-serif;background:var(--bg);margin:0;padding:16px;box-sizing:border-box}
@@ -43,9 +43,17 @@
   <div class="container">
     <div class="card topbar">
       <div>
-        <strong style="font-size:18px">QuickBill</strong><div class="small">GitHub Pages client (JSONP)</div>
+        <strong style="font-size:18px">QuickBill</strong>
+        <div class="small">Simple billing — paste your Apps Script Web App URL below</div>
       </div>
-      <div id="authArea"></div>
+      <div style="min-width:300px">
+        <label class="small">Web App URL (Apps Script)</label>
+        <div style="display:flex;gap:8px">
+          <input id="apiUrl" placeholder="https://script.google.com/macros/s/AAA.../exec" style="flex:1">
+          <button onclick="saveApiUrl()">Save URL</button>
+        </div>
+        <div style="margin-top:6px" class="small muted">Saved in browser localStorage</div>
+      </div>
     </div>
 
     <div id="main" class="card">
@@ -88,57 +96,20 @@
   </div>
 
 <script>
-  // ---------------- CONFIG ----------------
-  // Your Apps Script web app exec URL (you provided this)
-  const API_BASE = 'https://script.google.com/macros/s/AKfycbxUaDpqVGqX8DhW1RnRUDJNoKmUe3gIBp0tt3CvKkbOPJzcJ34kLm76ED2Om-ve8C97sQ/exec';
-
-  // ---------------- JSONP (all calls) ----------------
-  // JSONP helper (returns Promise). Uses `data` param with encoded JSON.
-  function jsonpFetch(action, body, timeoutMs) {
-    body = body || {};
-    var callbackName = 'qb_cb_' + Math.random().toString(36).slice(2);
-    timeoutMs = timeoutMs || 20000; // default 20s
-    return new Promise(function(resolve, reject) {
-      try {
-        var data = encodeURIComponent(JSON.stringify(body || {}));
-        var url = API_BASE + '?action=' + encodeURIComponent(action) + '&data=' + data + '&callback=' + callbackName;
-        var timer = setTimeout(function(){
-          cleanup();
-          reject(new Error('JSONP timeout'));
-        }, timeoutMs);
-
-        window[callbackName] = function(response) {
-          clearTimeout(timer);
-          cleanup();
-          resolve(response);
-        };
-
-        function cleanup(){
-          try { delete window[callbackName]; } catch(e){}
-          var s = document.getElementById(callbackName); if (s && s.parentNode) s.parentNode.removeChild(s);
-        }
-
-        var s = document.createElement('script');
-        s.id = callbackName;
-        s.src = url;
-        s.onerror = function() {
-          clearTimeout(timer);
-          cleanup();
-          reject(new Error('JSONP network error'));
-        };
-        document.head.appendChild(s);
-      } catch (err) { reject(err); }
-    });
+  // store/read API URL
+  function saveApiUrl(){
+    var u = document.getElementById('apiUrl').value.trim();
+    if (!u) { localStorage.removeItem('qb_api_url'); toast('Cleared API URL'); return; }
+    localStorage.setItem('qb_api_url', u);
+    toast('API URL saved');
   }
-
-  // For very small calls we can use a short helper wrapper
-  function apiCall(action, payload) {
-    // NOTE: we intentionally ALWAYS use JSONP to avoid CORS issues on GitHub Pages.
-    return jsonpFetch(action, payload);
+  function getApiUrl(){
+    return localStorage.getItem('qb_api_url') || '';
   }
+  // initialize input
+  document.getElementById('apiUrl').value = getApiUrl();
 
-  // ---------------- UI + logic (same flow as before) ----------------
-  function toast(msg, timeout){
+  function toast(msg,timeout){
     var d = document.getElementById('message');
     d.innerHTML = '<div class="toast">'+msg+'</div>';
     d.style.display = 'block';
@@ -162,52 +133,69 @@
   }
   setAuthArea();
 
+  /* ---------- Helper: POST JSON to Apps Script Web App ---------- */
+  async function postJSON(action, body){
+    var base = getApiUrl();
+    if (!base) return { success:false, message: 'Web App URL not set. Paste it at top and Save URL.' };
+    // we will POST JSON with { action: action, ...body }
+    try {
+      var payload = Object.assign({}, body || {}, { action: action });
+      var res = await fetch(base, {
+        method: 'POST',
+        mode: 'cors',
+        cache: 'no-cache',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      var text = await res.text();
+      try { return JSON.parse(text); } catch (e) { return { success:false, message: 'Invalid JSON response from server', raw: text }; }
+    } catch (e) {
+      return { success:false, message: 'Network error: ' + e.message };
+    }
+  }
+
   /* Signup */
-  function sendSignupCode(){
+  async function sendSignupCode(){
     var email = document.getElementById('signupEmail').value.trim();
     if (!email) return toast('Enter email');
-    apiCall('sendSignupCode', { email: email }).then(function(res){
-      if (res && res.success){
-        document.getElementById('signupArea').innerHTML = '<div class="row"><input id="signupCode" placeholder="Enter signup code"><button onclick="verifySignupCode()">Verify</button></div>';
-        toast(res.message || 'Code sent');
-      } else toast((res && res.message) || 'Error sending signup code');
-    }).catch(function(err){ toast('Network error (JSONP)'); console.error(err); });
+    var res = await postJSON('sendSignupCode', { email: email });
+    if (res.success){
+      document.getElementById('signupArea').innerHTML = '<div class="row"><input id="signupCode" placeholder="Enter signup code"><button onclick="verifySignupCode()">Verify</button></div>';
+      toast(res.message || 'Signup code sent');
+    } else toast(res.message || 'Failed');
   }
-  function verifySignupCode(){
+  async function verifySignupCode(){
     var email = document.getElementById('signupEmail').value.trim();
     var code = document.getElementById('signupCode').value.trim();
     if (!code) return toast('Enter code');
-    apiCall('verifySignupCode', { email: email, code: code }).then(function(res){
-      if (res && res.success){
-        toast('Signup complete');
-        localStorage.setItem('qb_email', email);
-        setAuthArea();
-      } else toast((res && res.message) || 'Invalid code');
-    }).catch(function(err){ toast('Network error (JSONP)'); console.error(err); });
+    var res = await postJSON('verifySignupCode', { email: email, code: code });
+    if (res.success){
+      toast('Signup complete');
+      localStorage.setItem('qb_email', email);
+      setAuthArea();
+    } else toast(res.message || 'Verification failed');
   }
 
   /* Login */
-  function sendLoginCode(){
+  async function sendLoginCode(){
     var email = document.getElementById('loginEmail').value.trim();
     if (!email) return toast('Enter email');
-    apiCall('sendLoginCode', { email: email }).then(function(res){
-      if (res && res.success){
-        document.getElementById('loginArea').innerHTML = '<div class="row"><input id="loginCode" placeholder="Enter login code"><button onclick="verifyLoginCode()">Verify</button></div>';
-        toast(res.message || 'Code sent');
-      } else toast((res && res.message) || 'Error sending login code');
-    }).catch(function(err){ toast('Network error (JSONP)'); console.error(err); });
+    var res = await postJSON('sendLoginCode', { email: email });
+    if (res.success){
+      document.getElementById('loginArea').innerHTML = '<div class="row"><input id="loginCode" placeholder="Enter login code"><button onclick="verifyLoginCode()">Verify</button></div>';
+      toast(res.message || 'Login code sent');
+    } else toast(res.message || 'Failed');
   }
-  function verifyLoginCode(){
+  async function verifyLoginCode(){
     var email = document.getElementById('loginEmail').value.trim();
     var code = document.getElementById('loginCode').value.trim();
     if (!code) return toast('Enter code');
-    apiCall('verifyLoginCode', { email: email, code: code }).then(function(res){
-      if (res && res.success){
-        localStorage.setItem('qb_email', email);
-        setAuthArea();
-        toast('Login successful');
-      } else toast((res && res.message) || 'Invalid code');
-    }).catch(function(err){ toast('Network error (JSONP)'); console.error(err); });
+    var res = await postJSON('verifyLoginCode', { email: email, code: code });
+    if (res.success){
+      localStorage.setItem('qb_email', email);
+      setAuthArea();
+      toast('Login successful');
+    } else toast(res.message || 'Verification failed');
   }
 
   function logout(){
@@ -217,24 +205,23 @@
   }
 
   /* Profile */
-  function showProfile(){
+  async function showProfile(){
     var email = localStorage.getItem('qb_email'); if (!email) return toast('Not logged in');
     var content = document.getElementById('contentArea');
-    content.innerHTML = '<h3>Profile</h3><div class="row"><div><input id="p_shop" placeholder="Shop Name"></div><div><input id="p_contact" placeholder="Contact"></div></div><div style="margin-top:8px"><textarea id="p_address" placeholder="Address" rows="3"></textarea></div><div class="row" style="margin-top:8px"><div><input id="p_currency" placeholder="Currency (e.g. PKR or Rs)"></div><div><input id="p_signature" placeholder="Signature text"></div></div><div class="actions" style="margin-top:8px"><button onclick="saveProfile()">Save Profile</button></div><div id="profileStatus" style="margin-top:8px"></div>';
-    apiCall('loadProfile', { email: email }).then(function(res){
-      if (res && res.success){
-        var p = res.profile || {};
-        document.getElementById('p_shop').value = p.shopName||'';
-        document.getElementById('p_contact').value = p.contact||'';
-        document.getElementById('p_address').value = p.address||'';
-        document.getElementById('p_currency').value = p.currency||'';
-        document.getElementById('p_signature').value = p.signature||'';
-      } else {
-        // no profile yet — leave blank
-      }
-    }).catch(function(err){ toast('Network error (JSONP)'); console.error(err); });
+    content.innerHTML = '<h3>Profile</h3><div class="row"><div><input id="p_shop" placeholder="Shop Name"></div><div><input id="p_contact" placeholder="Contact"></div></div><div style="margin-top:8px"><textarea id="p_address" placeholder="Address" rows="3"></textarea></div><div class="row" style="margin-top:8px"><div><input id="p_currency" placeholder="Currency (e.g. USD or $ or any other)"></div><div><input id="p_signature" placeholder="Signature text"></div></div><div class="actions" style="margin-top:8px"><button onclick="saveProfile()">Save Profile</button></div><div id="profileStatus" style="margin-top:8px"></div>';
+    var res = await postJSON('loadProfile', { email: email });
+    if (res.success && res.profile){
+      var p = res.profile;
+      document.getElementById('p_shop').value = p.shopName||'';
+      document.getElementById('p_contact').value = p.contact||'';
+      document.getElementById('p_address').value = p.address||'';
+      document.getElementById('p_currency').value = p.currency||'';
+      document.getElementById('p_signature').value = p.signature||'';
+    } else {
+      // profile may not exist yet - that's fine
+    }
   }
-  function saveProfile(){
+  async function saveProfile(){
     var email = localStorage.getItem('qb_email'); if (!email) return toast('Not logged in');
     var profile = {
       shopName: document.getElementById('p_shop').value.trim(),
@@ -243,12 +230,11 @@
       currency: document.getElementById('p_currency').value.trim(),
       signature: document.getElementById('p_signature').value.trim()
     };
-    apiCall('saveProfile', { email: email, profile: profile }).then(function(res){
-      if (res && res.success) toast('Profile saved'); else toast((res && res.message) || 'Error saving profile');
-    }).catch(function(err){ toast('Network error (JSONP)'); console.error(err); });
+    var res = await postJSON('saveProfile', { email: email, profile: profile });
+    if (res.success) toast('Profile saved'); else toast(res.message || 'Save failed');
   }
 
-  /* Invoice UI */
+  /* Invoicing UI */
   function showNewInvoice(){
     var email = localStorage.getItem('qb_email'); if (!email) return toast('Not logged in');
     var content = document.getElementById('contentArea');
@@ -260,6 +246,7 @@
     var tbody = document.querySelector('#itemsTable tbody');
     var idx = tbody.rows.length + 1;
     var tr = document.createElement('tr');
+
     tr.innerHTML = '<td class="num"><div class="label">#</div><div>' + idx + '</div></td>'
       +'<td><div class="label">Item</div><input class="it_name" value="'+(item?escapeHtml(item.name):'')+'"></td>'
       +'<td><div class="label">Qty</div><input class="it_qty" type="number" min="0" value="'+(item?item.qty:1)+'"></td>'
@@ -277,13 +264,14 @@
     tr.parentNode.removeChild(tr);
     rebuildIdx();
   }
+
   function rebuildIdx(){
     var rows = document.querySelectorAll('#itemsTable tbody tr');
     rows.forEach(function(r,i){ r.querySelector('.num div:last-child').innerText = i+1; });
   }
 
-  /* Preview (uses server-side HTML) */
-  function previewInvoice(){
+  /* Preview */
+  async function previewInvoice(){
     var email = localStorage.getItem('qb_email'); if (!email) return toast('Not logged in');
     var cust = document.getElementById('custName').value.trim();
     if (!cust) return toast('Enter customer name');
@@ -301,18 +289,18 @@
       items.push({name:name,qty:qty,rate:rate,discount:disc,discountType:dtype});
     }
     var invoiceObj = {customerName: cust, items: items};
-    // JSONP call (server returns HTML)
-    apiCall('getInvoiceHtml', { email: email, invoiceObj: invoiceObj }).then(function(res){
-      if (res && res.success){
-        var previewArea = document.getElementById('previewArea');
-        previewArea.innerHTML = '<div style="border:1px solid #eee;border-radius:8px;overflow:hidden"><iframe id="previewFrame" srcdoc="'+escapeAttr(res.html)+'" style="width:100%;height:680px;border:0;"></iframe></div>';
-        toast('Preview generated');
-      } else toast((res && res.message) || 'Failed to render preview');
-    }).catch(function(err){ toast('Network error (JSONP)'); console.error(err); });
+    var res = await postJSON('getInvoiceHtml', { email: email, invoiceObj: invoiceObj });
+    if (res.success && res.html){
+      var previewArea = document.getElementById('previewArea');
+      previewArea.innerHTML = '<div style="border:1px solid #eee;border-radius:8px;overflow:hidden"><iframe id="previewFrame" srcdoc="'+escapeAttr(res.html)+'" style="width:100%;height:680px;border:0;"></iframe></div>';
+      toast('Preview generated');
+    } else {
+      toast(res.message || 'Failed to render preview');
+    }
   }
 
-  /* Generate: JSONP call to create PDF (server will set public sharing) */
-  function generateInvoice(){
+  /* Generate: uses downloadUrl if backend provides it */
+  async function generateInvoice(){
     var email = localStorage.getItem('qb_email'); if (!email) return toast('Not logged in');
     var cust = document.getElementById('custName').value.trim();
     if (!cust) return toast('Enter customer name');
@@ -330,48 +318,34 @@
       items.push({name:name,qty:qty,rate:rate,discount:disc,discountType:dtype});
     }
     var invoiceObj = {customerName: cust, items: items};
-    // IMPORTANT: JSONP sends data in URL — if you have many items this URL may become too long.
-    // If you hit URL-length issues, see the notes below for alternatives.
-    apiCall('generateInvoicePDF', { email: email, invoiceObj: invoiceObj }).then(function(res){
-      if (res && res.success){
-        var isMobile = /Mobi|Android|iPhone|iPad/.test(navigator.userAgent) || window.innerWidth <= 800;
-        document.getElementById('invoiceResult').innerText = 'Invoice created — ID: ' + res.invoiceId;
-        toast('Invoice created');
-        if (!isMobile && res.downloadUrl) {
-          try {
-            var a = document.createElement('a');
-            a.href = res.downloadUrl;
-            a.download = 'invoice_' + res.invoiceId + '.pdf';
-            a.style.display = 'none';
-            document.body.appendChild(a);
-            a.click();
-            setTimeout(function(){ document.body.removeChild(a); }, 1000);
-          } catch (e) {
-            if (res.url) window.open(res.url, '_blank');
-          }
-        } else {
-          var invoiceArea = document.getElementById('invoiceResult');
-          var openBtn = document.createElement('button');
-          openBtn.textContent = 'Open PDF';
-          openBtn.style.marginLeft = '8px';
-          openBtn.onclick = function(){ if (res.url) window.open(res.url, '_blank'); };
-          invoiceArea.appendChild(openBtn);
+    var res = await postJSON('generateInvoicePDF', { email: email, invoiceObj: invoiceObj });
+    if (res.success){
+      var isMobile = /Mobi|Android|iPhone|iPad/.test(navigator.userAgent) || window.innerWidth <= 800;
+      document.getElementById('invoiceResult').innerText = 'Invoice created — ID: ' + (res.invoiceId || '');
+      toast('Invoice created');
+      if (!isMobile && res.downloadUrl){
+        try {
+          var a = document.createElement('a');
+          a.href = res.downloadUrl;
+          a.download = 'invoice_' + (res.invoiceId || 'invoice') + '.pdf';
+          a.style.display = 'none';
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(function(){ document.body.removeChild(a); }, 1000);
+        } catch (e) {
+          if (res.url) window.open(res.url, '_blank');
         }
-      } else toast((res && res.message) || 'Failed to create invoice');
-    }).catch(function(err){ toast('Network error (JSONP)'); console.error(err); });
+      } else {
+        if (res.url) window.open(res.url, '_blank');
+      }
+    } else {
+      toast(res.message || 'Failed to create invoice');
+    }
   }
 
-  /* utilities */
+  /* helpers */
   function escapeHtml(s){ if (!s && s !== 0) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   function escapeAttr(s){ return escapeHtml(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
-
-  // small helper: load dashboard if already logged in
-  (function(){
-    if (localStorage.getItem('qb_email')) {
-      setAuthArea();
-      // optionally auto-open profile or new invoice
-    }
-  })();
 </script>
 </body>
 </html>
