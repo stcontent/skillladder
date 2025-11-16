@@ -13,7 +13,6 @@
     .small{font-size:13px;color:var(--muted)}
     input,select,textarea{padding:10px;border:1px solid #e6e6e6;border-radius:8px;width:100%;box-sizing:border-box;font-size:14px}
     button{padding:8px 12px;border:0;background:var(--accent);color:#fff;border-radius:8px;cursor:pointer;font-size:14px}
-    button:disabled{background:#ccc;cursor:not-allowed;}
     .row{display:flex;gap:12px}
     .row > *{flex:1}
     table{width:100%;border-collapse:collapse;margin-top:12px}
@@ -56,7 +55,7 @@
             <h3>Signup</h3>
             <input id="signupEmail" placeholder="Enter your email" autocomplete="email">
             <div class="actions">
-              <button id="btnSignup" onclick="sendSignupCode(this)">Send Signup Code</button>
+              <button onclick="sendSignupCode()">Send Signup Code</button>
             </div>
             <div id="signupArea" style="margin-top:8px"></div>
           </div>
@@ -64,7 +63,7 @@
             <h3>Login</h3>
             <input id="loginEmail" placeholder="Enter your email" autocomplete="email">
             <div class="actions">
-              <button id="btnLogin" onclick="sendLoginCode(this)">Send Login Code</button>
+              <button onclick="sendLoginCode()">Send Login Code</button>
             </div>
             <div id="loginArea" style="margin-top:8px"></div>
           </div>
@@ -85,52 +84,29 @@
       </div>
     </div>
 
-    <div id="message" style="position:fixed;right:18px;bottom:18px;display:none;z-index:100;"></div>
+    <div id="message" style="position:fixed;right:18px;bottom:18px;display:none"></div>
   </div>
 
 <script>
-  // ------------------------------------------------------------------
-  // IMPORTANT!
-  // 1. Deploy your Code.gs file as a Web App.
-  // 2. Set "Execute as:" to "Me".
-  // 3. Set "Who has access:" to "Anyone".
-  // 4. Copy the "Web app URL" and paste it below.
-  // ------------------------------------------------------------------
-  const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxUaDpqVGqX8DhW1RnRUDJNoKmUe3gIBp0tt3CvKkbOPJzcJ34kLm76ED2Om-ve8C97sQ/exec';
+  // Replace this with your Apps Script Web App URL after deployment
+  const SCRIPT_URL = 'YOUR_APPS_SCRIPT_WEB_APP_URL_HERE';
 
-  /**
-   * Helper function to call the Apps Script backend.
-   * @param {string} functionName The name of the function to call in Code.gs
-   * @param {Array} args An array of arguments for the function.
-   */
-  async function callAppsScript(functionName, args = []) {
-    if (!WEB_APP_URL || WEB_APP_URL === 'https://script.google.com/macros/s/AKfycbxUaDpqVGqX8DhW1RnRUDJNoKmUe3gIBp0tt3CvKkbOPJzcJ34kLm76ED2Om-ve8C97sQ/exec') {
-      console.error('WEB_APP_URL is not set.');
-      toast('Configuration Error: Web App URL is not set in Index.html');
-      throw new Error('WEB_APP_URL not set');
-    }
-    
-    const response = await fetch(WEB_APP_URL, {
+  function callAppsScript(functionName, data) {
+    return fetch(SCRIPT_URL + '?function=' + functionName, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      // We send the function name and args in the body.
-      // The doPost function in Code.gs will parse this.
-      body: JSON.stringify({ function: functionName, args: args }),
-      redirect: 'follow' // Important for Apps Script Web Apps
+      body: JSON.stringify(data || {})
+    })
+    .then(response => response.json())
+    .catch(error => {
+      console.error('Error:', error);
+      return { success: false, message: 'Network error: ' + error.message };
     });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    // Apps Script returns JSON, so we parse it.
-    return await response.json();
   }
 
-
-  function toast(msg,timeout){
+  function toast(msg, timeout){
     var d = document.getElementById('message');
     d.innerHTML = '<div class="toast">'+msg+'</div>';
     d.style.display = 'block';
@@ -155,116 +131,65 @@
   setAuthArea();
 
   /* Signup */
-  async function sendSignupCode(btn){
+  function sendSignupCode(){
     var email = document.getElementById('signupEmail').value.trim();
     if (!email) return toast('Enter email');
-    
-    btn.disabled = true;
-    btn.innerText = 'Sending...';
-    try {
-      const res = await callAppsScript('sendSignupCode', [email]);
+    callAppsScript('sendSignupCode', {email: email}).then(function(res){
       if (res.success){
-        document.getElementById('signupArea').innerHTML = '<div class="row"><input id="signupCode" placeholder="Enter signup code"><button id="btnVerifySignup" onclick="verifySignupCode(this)">Verify</button></div>';
+        document.getElementById('signupArea').innerHTML = '<div class="row"><input id="signupCode" placeholder="Enter signup code"><button onclick="verifySignupCode()">Verify</button></div>';
         toast(res.message);
-      } else {
-        toast(res.message);
-      }
-    } catch (e) {
-      toast('Error: ' + e.message);
-    } finally {
-      btn.disabled = false;
-      btn.innerText = 'Send Signup Code';
-    }
+      } else toast(res.message);
+    });
   }
-  
-  async function verifySignupCode(btn){
+  function verifySignupCode(){
     var email = document.getElementById('signupEmail').value.trim();
     var code = document.getElementById('signupCode').value.trim();
     if (!code) return toast('Enter code');
-    
-    btn.disabled = true;
-    btn.innerText = 'Verifying...';
-    try {
-      const res = await callAppsScript('verifySignupCode', [email, code]);
+    callAppsScript('verifySignupCode', {email: email, code: code}).then(function(res){
       if (res.success){
         toast('Signup complete');
         localStorage.setItem('qb_email', email);
         setAuthArea();
-      } else {
-        toast(res.message);
-        btn.disabled = false;
-        btn.innerText = 'Verify';
-      }
-    } catch (e) {
-      toast('Error: ' + e.message);
-      btn.disabled = false;
-      btn.innerText = 'Verify';
-    }
+      } else toast(res.message);
+    });
   }
 
   /* Login */
-  async function sendLoginCode(btn){
+  function sendLoginCode(){
     var email = document.getElementById('loginEmail').value.trim();
     if (!email) return toast('Enter email');
-
-    btn.disabled = true;
-    btn.innerText = 'Sending...';
-    try {
-      const res = await callAppsScript('sendLoginCode', [email]);
+    callAppsScript('sendLoginCode', {email: email}).then(function(res){
       if (res.success){
-        document.getElementById('loginArea').innerHTML = '<div class="row"><input id="loginCode" placeholder="Enter login code"><button id="btnVerifyLogin" onclick="verifyLoginCode(this)">Verify</button></div>';
+        document.getElementById('loginArea').innerHTML = '<div class="row"><input id="loginCode" placeholder="Enter login code"><button onclick="verifyLoginCode()">Verify</button></div>';
         toast(res.message);
-      } else {
-        toast(res.message);
-      }
-    } catch (e) {
-      toast('Error: ' + e.message);
-    } finally {
-      btn.disabled = false;
-      btn.innerText = 'Send Login Code';
-    }
+      } else toast(res.message);
+    });
   }
-
-  async function verifyLoginCode(btn){
+  function verifyLoginCode(){
     var email = document.getElementById('loginEmail').value.trim();
     var code = document.getElementById('loginCode').value.trim();
     if (!code) return toast('Enter code');
-    
-    btn.disabled = true;
-    btn.innerText = 'Verifying...';
-    try {
-      const res = await callAppsScript('verifyLoginCode', [email, code]);
+    callAppsScript('verifyLoginCode', {email: email, code: code}).then(function(res){
       if (res.success){
         localStorage.setItem('qb_email', email);
         setAuthArea();
         toast('Login successful');
-      } else {
-        toast(res.message);
-        btn.disabled = false;
-        btn.innerText = 'Verify';
-      }
-    } catch (e) {
-      toast('Error: ' + e.message);
-      btn.disabled = false;
-      btn.innerText = 'Verify';
-    }
+      } else toast(res.message);
+    });
   }
 
   function logout(){
     localStorage.removeItem('qb_email');
     setAuthArea();
-    document.getElementById('contentArea').innerHTML = ''; // Clear content
     toast('Logged out');
   }
 
   /* Profile */
-  async function showProfile(){
+  function showProfile(){
     var email = localStorage.getItem('qb_email'); if (!email) return toast('Not logged in');
     var content = document.getElementById('contentArea');
-    content.innerHTML = '<h3>Profile</h3><div class="row"><div><input id="p_shop" placeholder="Shop Name"></div><div><input id="p_contact" placeholder="Contact"></div></div><div style="margin-top:8px"><textarea id="p_address" placeholder="Address" rows="3"></textarea></div><div class="row" style="margin-top:8px"><div><input id="p_currency" placeholder="Currency (e.g. USD or $ or any other)"></div><div><input id="p_signature" placeholder="Signature text"></div></div><div class="actions" style="margin-top:8px"><button id="btnSaveProfile" onclick="saveProfile(this)">Save Profile</button></div><div id="profileStatus" style="margin-top:8px">Loading profile...</div>';
-    
-    try {
-      const res = await callAppsScript('loadProfile', [email]);
+    content.innerHTML = '<h3>Profile</h3><div class="row"><div><input id="p_shop" placeholder="Shop Name"></div><div><input id="p_contact" placeholder="Contact"></div></div><div style="margin-top:8px"><textarea id="p_address" placeholder="Address" rows="3"></textarea></div><div class="row" style="margin-top:8px"><div><input id="p_currency" placeholder="Currency (e.g. USD or $ or any other)"></div><div><input id="p_signature" placeholder="Signature text"></div></div><div class="actions" style="margin-top:8px"><button onclick="saveProfile()">Save Profile</button></div><div id="profileStatus" style="margin-top:8px"></div>';
+    callAppsScript('loadProfile', {email: email}).then(function(res){
       if (res.success){
         var p = res.profile;
         document.getElementById('p_shop').value = p.shopName||'';
@@ -272,16 +197,10 @@
         document.getElementById('p_address').value = p.address||'';
         document.getElementById('p_currency').value = p.currency||'';
         document.getElementById('p_signature').value = p.signature||'';
-        document.getElementById('profileStatus').innerText = 'Profile loaded.';
-      } else {
-        document.getElementById('profileStatus').innerText = 'Could not load profile: ' + res.message;
       }
-    } catch (e) {
-      document.getElementById('profileStatus').innerText = 'Error loading profile: ' + e.message;
-    }
+    });
   }
-  
-  async function saveProfile(btn){
+  function saveProfile(){
     var email = localStorage.getItem('qb_email'); if (!email) return toast('Not logged in');
     var profile = {
       shopName: document.getElementById('p_shop').value.trim(),
@@ -290,32 +209,16 @@
       currency: document.getElementById('p_currency').value.trim(),
       signature: document.getElementById('p_signature').value.trim()
     };
-    
-    btn.disabled = true;
-    btn.innerText = 'Saving...';
-    try {
-      const res = await callAppsScript('saveProfile', [email, profile]);
-      if (res.success) {
-        toast('Profile saved');
-        document.getElementById('profileStatus').innerText = 'Profile saved successfully.';
-      } else {
-        toast(res.message);
-        document.getElementById('profileStatus').innerText = 'Save failed: ' + res.message;
-      }
-    } catch (e) {
-      toast('Error: ' + e.message);
-      document.getElementById('profileStatus').innerText = 'Error saving: ' + e.message;
-    } finally {
-      btn.disabled = false;
-      btn.innerText = 'Save Profile';
-    }
+    callAppsScript('saveProfile', {email: email, profileObj: profile}).then(function(res){
+      if (res.success) toast('Profile saved'); else toast(res.message);
+    });
   }
 
   /* Invoicing UI */
   function showNewInvoice(){
     var email = localStorage.getItem('qb_email'); if (!email) return toast('Not logged in');
     var content = document.getElementById('contentArea');
-    content.innerHTML = '<h3>New Invoice</h3><div><input id="custName" placeholder="Customer Name"></div><div style="margin-top:8px" class="actions"><button onclick="addItemRow()">Add Item</button><button id="btnPreview" onclick="previewInvoice(this)">Preview</button><button id="btnGenerate" onclick="generateInvoice(this)">Generate PDF</button></div><div id="itemsWrap" style="margin-top:12px" class="scrollable"><table id="itemsTable"><thead><tr><th style="width:6%">#</th><th>Item</th><th style="width:12%">Qty</th><th style="width:12%">Rate</th><th style="width:12%">Discount</th><th style="width:12%">Type</th><th style="width:10%">Action</th></tr></thead><tbody></tbody></table></div><div id="previewArea" style="margin-top:12px"></div><div id="invoiceResult" style="margin-top:10px"></div>';
+    content.innerHTML = '<h3>New Invoice</h3><div><input id="custName" placeholder="Customer Name"></div><div style="margin-top:8px" class="actions"><button onclick="addItemRow()">Add Item</button><button onclick="previewInvoice()">Preview</button><button onclick="generateInvoice()">Generate PDF</button></div><div id="itemsWrap" style="margin-top:12px" class="scrollable"><table id="itemsTable"><thead><tr><th style="width:6%">#</th><th>Item</th><th style="width:12%">Qty</th><th style="width:12%">Rate</th><th style="width:12%">Discount</th><th style="width:12%">Type</th><th style="width:10%">Action</th></tr></thead><tbody></tbody></table></div><div id="previewArea" style="margin-top:12px"></div><div id="invoiceResult" style="margin-top:10px"></div>';
     addItemRow();
   }
 
@@ -347,17 +250,13 @@
     rows.forEach(function(r,i){ r.querySelector('.num div:last-child').innerText = i+1; });
   }
 
-  function getInvoiceDataFromUI() {
+  /* Preview */
+  function previewInvoice(){
+    var email = localStorage.getItem('qb_email'); if (!email) return toast('Not logged in');
     var cust = document.getElementById('custName').value.trim();
-    if (!cust) {
-      toast('Enter customer name');
-      return null;
-    }
+    if (!cust) return toast('Enter customer name');
     var rows = document.querySelectorAll('#itemsTable tbody tr');
-    if (!rows.length) {
-      toast('Add at least one item');
-      return null;
-    }
+    if (!rows.length) return toast('Add at least one item');
     var items = [];
     for (var i=0;i<rows.length;i++){
       var r = rows[i];
@@ -366,25 +265,11 @@
       var rate = Number(r.querySelector('.it_rate').value)||0;
       var disc = Number(r.querySelector('.it_disc').value)||0;
       var dtype = r.querySelector('.it_dtype').value;
-      if (!name) {
-        toast('Item name required for row ' + (i+1));
-        return null;
-      }
+      if (!name) return toast('Item name required');
       items.push({name:name,qty:qty,rate:rate,discount:disc,discountType:dtype});
     }
-    return {customerName: cust, items: items};
-  }
-
-  /* Preview */
-  async function previewInvoice(btn){
-    var email = localStorage.getItem('qb_email'); if (!email) return toast('Not logged in');
-    var invoiceObj = getInvoiceDataFromUI();
-    if (!invoiceObj) return;
-
-    btn.disabled = true;
-    btn.innerText = 'Loading...';
-    try {
-      const res = await callAppsScript('getInvoiceHtml', [email, invoiceObj]);
+    var invoiceObj = {customerName: cust, items: items};
+    callAppsScript('getInvoiceHtml', {email: email, invoiceObj: invoiceObj}).then(function(res){
       if (res.success){
         var previewArea = document.getElementById('previewArea');
         previewArea.innerHTML = '<div style="border:1px solid #eee;border-radius:8px;overflow:hidden"><iframe id="previewFrame" srcdoc="'+escapeAttr(res.html)+'" style="width:100%;height:680px;border:0;"></iframe></div>';
@@ -392,34 +277,39 @@
       } else {
         toast(res.message || 'Failed to render preview');
       }
-    } catch (e) {
-      toast('Error: ' + e.message);
-    } finally {
-      btn.disabled = false;
-      btn.innerText = 'Preview';
-    }
+    });
   }
 
   /* Generate: auto-download on desktop, show ID on mobile */
-  async function generateInvoice(btn){
+  function generateInvoice(){
     var email = localStorage.getItem('qb_email'); if (!email) return toast('Not logged in');
-    var invoiceObj = getInvoiceDataFromUI();
-    if (!invoiceObj) return;
-
-    btn.disabled = true;
-    btn.innerText = 'Generating...';
-    try {
-      const res = await callAppsScript('generateInvoicePDF', [email, invoiceObj]);
+    var cust = document.getElementById('custName').value.trim();
+    if (!cust) return toast('Enter customer name');
+    var rows = document.querySelectorAll('#itemsTable tbody tr');
+    if (!rows.length) return toast('Add at least one item');
+    var items = [];
+    for (var i=0;i<rows.length;i++){
+      var r = rows[i];
+      var name = r.querySelector('.it_name').value.trim();
+      var qty = Number(r.querySelector('.it_qty').value)||0;
+      var rate = Number(r.querySelector('.it_rate').value)||0;
+      var disc = Number(r.querySelector('.it_disc').value)||0;
+      var dtype = r.querySelector('.it_dtype').value;
+      if (!name) return toast('Item name required');
+      items.push({name:name,qty:qty,rate:rate,discount:disc,discountType:dtype});
+    }
+    var invoiceObj = {customerName: cust, items: items};
+    callAppsScript('generateInvoicePDF', {email: email, invoiceObj: invoiceObj}).then(function(res){
       if (res.success){
         var isMobile = /Mobi|Android|iPhone|iPad/.test(navigator.userAgent) || window.innerWidth <= 800;
         document.getElementById('invoiceResult').innerText = 'Invoice created — ID: ' + res.invoiceId;
         toast('Invoice created');
-        
         // Desktop: start automatic download using downloadUrl if available
         if (!isMobile && res.downloadUrl){
           try {
             var a = document.createElement('a');
             a.href = res.downloadUrl;
+            // Attempt to force download; set download attribute if same origin — may be ignored for drive links
             a.download = 'invoice_' + res.invoiceId + '.pdf';
             a.style.display = 'none';
             document.body.appendChild(a);
@@ -430,18 +320,12 @@
             if (res.url) window.open(res.url, '_blank');
           }
         } else {
-          // Mobile: do not auto-download; just notify.
-          document.getElementById('invoiceResult').innerHTML += ' <a href="'+res.url+'" target="_blank">(View PDF)</a>';
+          // Mobile: do not auto-download; just notify. (PDF is public in Drive.)
         }
       } else {
         toast(res.message || 'Failed to create invoice');
       }
-    } catch (e) {
-      toast('Error: ' + e.message);
-    } finally {
-      btn.disabled = false;
-      btn.innerText = 'Generate PDF';
-    }
+    });
   }
 
   /* helpers */
