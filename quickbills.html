@@ -1,260 +1,215 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>QuickBill</title>
-  <style>
-    :root{--bg:#f7f7f7;--card:#fff;--accent:#111;--muted:#666}
-    body{font-family:Inter,Arial,Helvetica,sans-serif;background:var(--bg);margin:0;padding:16px;box-sizing:border-box}
-    .container{max-width:980px;margin:0 auto}
-    .card{background:var(--card);padding:14px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,0.04);margin:12px 0}
-    .topbar{display:flex;justify-content:space-between;align-items:center;gap:12px}
-    .small{font-size:13px;color:var(--muted)}
-    input,select,textarea{padding:10px;border:1px solid #e6e6e6;border-radius:8px;width:100%;box-sizing:border-box;font-size:14px}
-    button{padding:8px 12px;border:0;background:var(--accent);color:#fff;border-radius:8px;cursor:pointer;font-size:14px}
-    .row{display:flex;gap:12px}
-    .row > *{flex:1}
-    table{width:100%;border-collapse:collapse;margin-top:12px}
-    table td,table th{border:1px solid #eee;padding:8px;font-size:14px}
-    .right{text-align:right}
-    .muted{color:var(--muted)}
-    .toast{padding:8px 12px;background:#222;color:#fff;border-radius:8px;display:inline-block}
-    .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
-    .scrollable{overflow:auto;-webkit-overflow-scrolling:touch}
-    @media (max-width:640px){
-      .row{flex-direction:column}
-      .topbar{flex-direction:column;align-items:flex-start;gap:8px}
-      table.inv, table#itemsTable { display:block; width:100%; }
-      table#itemsTable thead{display:none}
-      table#itemsTable tbody, table#itemsTable tr { display:block; width:100%; margin-bottom:8px; border:1px solid #eee; border-radius:8px; padding:8px; box-sizing:border-box; background:#fff; }
-      table#itemsTable td { display:block; border:0; padding:6px 0; }
-      table#itemsTable td .label { display:block; font-size:12px; color:var(--muted); margin-bottom:6px; }
-      table#itemsTable td input, table#itemsTable td select { width:100%; }
-      #previewFrame { height:480px; }
-    }
-    @media (min-width:641px){
-      .scrollable { overflow:auto; }
-      table#itemsTable td input, table#itemsTable td select { width:100%; box-sizing:border-box; }
-    }
-  </style>
+<meta charset="UTF-8">
+<title>QuickBill</title>
+<style>
+body { font-family: Arial, sans-serif; margin: 20px; }
+h2 { margin-top: 0; }
+input, button, textarea { margin: 5px 0; padding: 5px; width: 300px; }
+button { width: 150px; }
+.container { max-width: 800px; margin: auto; }
+.hidden { display: none; }
+table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+th, td { border: 1px solid #999; padding: 5px; text-align: left; }
+.num { text-align: right; }
+</style>
 </head>
 <body>
 <div class="container">
-  <div class="card topbar">
-    <div>
-      <strong style="font-size:18px">QuickBill</strong><div class="small">Simple billing with Easy and Friendly Interface</div>
-    </div>
-    <div id="authArea"></div>
-  </div>
 
-  <div id="main" class="card">
-    <div id="landingView">
-      <div class="row">
-        <div>
-          <h3>Signup</h3>
-          <input id="signupEmail" placeholder="Enter your email" autocomplete="email">
-          <div class="actions">
-            <button onclick="sendSignupCode()">Send Signup Code</button>
-          </div>
-          <div id="signupArea" style="margin-top:8px"></div>
-        </div>
-        <div>
-          <h3>Login</h3>
-          <input id="loginEmail" placeholder="Enter your email" autocomplete="email">
-          <div class="actions">
-            <button onclick="sendLoginCode()">Send Login Code</button>
-          </div>
-          <div id="loginArea" style="margin-top:8px"></div>
-        </div>
-      </div>
-    </div>
+<h2>QuickBill</h2>
 
-    <div id="appView" style="display:none">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
-        <div><strong>Dashboard</strong><div class="small">Logged in as <span id="meEmail"></span></div></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button onclick="showProfile()">Profile</button>
-          <button onclick="showNewInvoice()">Create Invoice</button>
-          <button onclick="logout()">Logout</button>
-        </div>
-      </div>
-      <div id="contentArea" style="margin-top:12px"></div>
-    </div>
-  </div>
+<div id="signupDiv">
+  <h3>Signup</h3>
+  <input type="email" id="signupEmail" placeholder="Email"><br>
+  <button onclick="sendSignupCode()">Send Code</button><br>
+  <input type="text" id="signupCode" placeholder="Enter Code"><br>
+  <button onclick="verifySignupCode()">Verify & Signup</button>
+</div>
 
-  <div id="message" style="position:fixed;right:18px;bottom:18px;display:none"></div>
+<div id="loginDiv" class="hidden">
+  <h3>Login</h3>
+  <input type="email" id="loginEmail" placeholder="Email"><br>
+  <button onclick="sendLoginCode()">Send Code</button><br>
+  <input type="text" id="loginCode" placeholder="Enter Code"><br>
+  <button onclick="verifyLoginCode()">Verify & Login</button>
+</div>
+
+<div id="profileDiv" class="hidden">
+  <h3>Profile</h3>
+  <input type="text" id="shopName" placeholder="Shop Name"><br>
+  <input type="text" id="contact" placeholder="Contact Info"><br>
+  <input type="text" id="address" placeholder="Address"><br>
+  <input type="text" id="currency" placeholder="Currency (e.g., $)"><br>
+  <input type="text" id="signature" placeholder="Signature"><br>
+  <button onclick="saveProfile()">Save Profile</button>
+  <button onclick="loadProfile()">Load Profile</button>
+</div>
+
+<div id="invoiceDiv" class="hidden">
+  <h3>Create Invoice</h3>
+  Customer Name: <input type="text" id="customerName" placeholder="Customer Name"><br>
+  <table id="itemsTable">
+    <thead>
+      <tr><th>#</th><th>Item</th><th>Qty</th><th>Rate</th><th>Discount</th><th>Discount Type</th><th>Action</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  <button onclick="addItemRow()">Add Item</button><br>
+  <button onclick="previewInvoice()">Preview Invoice</button>
+  <button onclick="generateInvoicePDF()">Generate PDF</button>
+  <div id="invoicePreview"></div>
+</div>
+
 </div>
 
 <script>
-const BASE_URL = 'https://script.google.com/macros/s/AKfycbxUaDpqVGqX8DhW1RnRUDJNoKmUe3gIBp0tt3CvKkbOPJzcJ34kLm76ED2Om-ve8C97sQ/exec';
+const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxUaDpqVGqX8DhW1RnRUDJNoKmUe3gIBp0tt3CvKkbOPJzcJ34kLm76ED2Om-ve8C97sQ/exec';
+let currentEmail = '';
 
-function toast(msg,timeout){
-  var d = document.getElementById('message');
-  d.innerHTML = '<div class="toast">'+msg+'</div>';
-  d.style.display = 'block';
-  if (timeout===undefined) timeout = 3000;
-  setTimeout(function(){ d.style.display='none'; }, timeout);
+function postAction(action, payload={}) {
+  payload.action = action;
+  return fetch(WEBAPP_URL, {
+    method:'POST',
+    body: JSON.stringify(payload),
+    headers:{ 'Content-Type':'application/json' }
+  }).then(r=>r.json());
 }
 
-function setAuthArea(){
-  var auth = document.getElementById('authArea');
-  var me = localStorage.getItem('qb_email');
-  if (me){
-    auth.innerHTML = '<div class="small">'+me+' <button onclick="logout()" style="margin-left:8px;padding:6px 8px;border-radius:6px">Logout</button></div>';
-    document.getElementById('landingView').style.display='none';
-    document.getElementById('appView').style.display='block';
-    document.getElementById('meEmail').innerText = me;
-  } else {
-    auth.innerHTML = '';
-    document.getElementById('landingView').style.display='block';
-    document.getElementById('appView').style.display='none';
-  }
-}
-setAuthArea();
-
-/* --- Helpers --- */
-async function runAppsScript(funcName, ...args){
-  try{
-    let res = await fetch(BASE_URL+'?func='+funcName+'&args='+encodeURIComponent(JSON.stringify(args)));
-    return await res.json();
-  } catch(e){ toast('Network error: '+e.message); return {success:false,message:e.message}; }
-}
-
-/* --- Signup/Login --- */
-async function sendSignupCode(){
+/* ------------------- Signup/Login ------------------- */
+function sendSignupCode(){
   const email = document.getElementById('signupEmail').value.trim();
-  if(!email) return toast('Enter email');
-  const res = await runAppsScript('sendSignupCode', email);
-  if(res.success){
-    document.getElementById('signupArea').innerHTML = '<div class="row"><input id="signupCode" placeholder="Enter signup code"><button onclick="verifySignupCode()">Verify</button></div>';
-    toast(res.message);
-  } else toast(res.message);
+  if(!email){ alert('Enter email'); return; }
+  postAction('sendSignupCode',{email}).then(res=>alert(res.message));
 }
 
-async function verifySignupCode(){
+function verifySignupCode(){
   const email = document.getElementById('signupEmail').value.trim();
   const code = document.getElementById('signupCode').value.trim();
-  if(!code) return toast('Enter code');
-  const res = await runAppsScript('verifySignupCode', email, code);
-  if(res.success){
-    toast('Signup complete');
-    localStorage.setItem('qb_email', email);
-    setAuthArea();
-  } else toast(res.message);
+  postAction('verifySignupCode',{email,code}).then(res=>{
+    alert(res.message);
+    if(res.success){
+      currentEmail = email;
+      document.getElementById('signupDiv').classList.add('hidden');
+      document.getElementById('profileDiv').classList.remove('hidden');
+      document.getElementById('invoiceDiv').classList.remove('hidden');
+    }
+  });
 }
 
-async function sendLoginCode(){
+function sendLoginCode(){
   const email = document.getElementById('loginEmail').value.trim();
-  if(!email) return toast('Enter email');
-  const res = await runAppsScript('sendLoginCode', email);
-  if(res.success){
-    document.getElementById('loginArea').innerHTML = '<div class="row"><input id="loginCode" placeholder="Enter login code"><button onclick="verifyLoginCode()">Verify</button></div>';
-    toast(res.message);
-  } else toast(res.message);
+  if(!email){ alert('Enter email'); return; }
+  postAction('sendLoginCode',{email}).then(res=>alert(res.message));
 }
 
-async function verifyLoginCode(){
+function verifyLoginCode(){
   const email = document.getElementById('loginEmail').value.trim();
   const code = document.getElementById('loginCode').value.trim();
-  if(!code) return toast('Enter code');
-  const res = await runAppsScript('verifyLoginCode', email, code);
-  if(res.success){
-    localStorage.setItem('qb_email', email);
-    setAuthArea();
-    toast('Login successful');
-  } else toast(res.message);
-}
-
-function logout(){
-  localStorage.removeItem('qb_email');
-  setAuthArea();
-  toast('Logged out');
-}
-
-/* --- Profile --- */
-async function showProfile(){
-  const email = localStorage.getItem('qb_email'); if(!email) return toast('Not logged in');
-  const content = document.getElementById('contentArea');
-  content.innerHTML = '<h3>Profile</h3><div class="row"><div><input id="p_shop" placeholder="Shop Name"></div><div><input id="p_contact" placeholder="Contact"></div></div><div style="margin-top:8px"><textarea id="p_address" placeholder="Address" rows="3"></textarea></div><div class="row" style="margin-top:8px"><div><input id="p_currency" placeholder="Currency"></div><div><input id="p_signature" placeholder="Signature text"></div></div><div class="actions" style="margin-top:8px"><button onclick="saveProfile()">Save Profile</button></div><div id="profileStatus" style="margin-top:8px"></div>';
-  const res = await runAppsScript('loadProfile', email);
-  if(res.success){
-    const p=res.profile;
-    document.getElementById('p_shop').value = p.shopName||'';
-    document.getElementById('p_contact').value = p.contact||'';
-    document.getElementById('p_address').value = p.address||'';
-    document.getElementById('p_currency').value = p.currency||'';
-    document.getElementById('p_signature').value = p.signature||'';
-  }
-}
-
-async function saveProfile(){
-  const email = localStorage.getItem('qb_email'); if(!email) return toast('Not logged in');
-  const profile = {
-    shopName: document.getElementById('p_shop').value.trim(),
-    contact: document.getElementById('p_contact').value.trim(),
-    address: document.getElementById('p_address').value.trim(),
-    currency: document.getElementById('p_currency').value.trim(),
-    signature: document.getElementById('p_signature').value.trim()
-  };
-  const res = await runAppsScript('saveProfile', email, profile);
-  toast(res.success?'Profile saved':res.message);
-}
-
-/* --- Invoice --- */
-async function showNewInvoice(){
-  const email = localStorage.getItem('qb_email'); if(!email) return toast('Not logged in');
-  const content = document.getElementById('contentArea');
-  content.innerHTML='<h3>New Invoice</h3><div><input id="custName" placeholder="Customer Name"></div><div style="margin-top:8px" class="actions"><button onclick="addItemRow()">Add Item</button><button onclick="previewInvoice()">Preview</button><button onclick="generateInvoice()">Generate PDF</button></div><div id="itemsWrap" style="margin-top:12px" class="scrollable"><table id="itemsTable"><thead><tr><th>#</th><th>Item</th><th>Qty</th><th>Rate</th><th>Discount</th><th>Type</th><th>Action</th></tr></thead><tbody></tbody></table></div><div id="previewArea" style="margin-top:12px"></div><div id="invoiceResult" style="margin-top:10px"></div>';
-  addItemRow();
-}
-
-function addItemRow(item){
-  const tbody=document.querySelector('#itemsTable tbody');
-  const idx=tbody.rows.length+1;
-  const tr=document.createElement('tr');
-  tr.innerHTML='<td>'+idx+'</td>'
-    +'<td><input class="it_name" value="'+(item?escapeHtml(item.name):'')+'"></td>'
-    +'<td><input class="it_qty" type="number" min="0" value="'+(item?item.qty:1)+'"></td>'
-    +'<td><input class="it_rate" type="number" min="0" step="0.01" value="'+(item?item.rate:0)+'"></td>'
-    +'<td><input class="it_disc" type="number" min="0" step="0.01" value="'+(item?item.discount:0)+'"></td>'
-    +'<td><select class="it_dtype"><option value="flat">Flat</option><option value="percent">Percent</option></select></td>'
-    +'<td><button onclick="removeItem(this)">Remove</button></td>';
-  tbody.appendChild(tr);
-  if(item&&item.discountType) tr.querySelector('.it_dtype').value=item.discountType;
-}
-
-function removeItem(btn){ btn.closest('tr').remove(); rebuildIdx(); }
-function rebuildIdx(){ document.querySelectorAll('#itemsTable tbody tr').forEach((r,i)=>r.cells[0].innerText=i+1); }
-
-async function previewInvoice(){
-  const email=localStorage.getItem('qb_email'); if(!email) return toast('Not logged in');
-  const cust=document.getElementById('custName').value.trim(); if(!cust) return toast('Enter customer name');
-  const rows=document.querySelectorAll('#itemsTable tbody tr'); if(!rows.length) return toast('Add at least one item');
-  const items=[]; for(const r of rows){ const name=r.querySelector('.it_name').value.trim(); const qty=+r.querySelector('.it_qty').value||0; const rate=+r.querySelector('.it_rate').value||0; const disc=+r.querySelector('.it_disc').value||0; const dtype=r.querySelector('.it_dtype').value; if(!name) return toast('Item name required'); items.push({name,qty,rate,discount:disc,discountType:dtype}); }
-  const res=await runAppsScript('getInvoiceHtml', email, {customerName:cust,items});
-  if(res.success) document.getElementById('previewArea').innerHTML='<iframe srcdoc="'+escapeAttr(res.html)+'" style="width:100%;height:680px;border:0;"></iframe>';
-  else toast(res.message||'Failed to render preview');
-}
-
-async function generateInvoice(){
-  const email=localStorage.getItem('qb_email'); if(!email) return toast('Not logged in');
-  const cust=document.getElementById('custName').value.trim(); if(!cust) return toast('Enter customer name');
-  const rows=document.querySelectorAll('#itemsTable tbody tr'); if(!rows.length) return toast('Add at least one item');
-  const items=[]; for(const r of rows){ const name=r.querySelector('.it_name').value.trim(); const qty=+r.querySelector('.it_qty').value||0; const rate=+r.querySelector('.it_rate').value||0; const disc=+r.querySelector('.it_disc').value||0; const dtype=r.querySelector('.it_dtype').value; if(!name) return toast('Item name required'); items.push({name,qty,rate,discount:disc,discountType:dtype}); }
-  const res=await runAppsScript('generateInvoicePDF', email, {customerName:cust,items});
-  if(res.success){
-    document.getElementById('invoiceResult').innerText='Invoice created — ID: '+res.invoiceId;
-    toast('Invoice created');
-    if(!(/Mobi|Android|iPhone|iPad/.test(navigator.userAgent)||window.innerWidth<=800)&&res.downloadUrl){
-      const a=document.createElement('a'); a.href=res.downloadUrl; a.download='invoice_'+res.invoiceId+'.pdf'; a.style.display='none'; document.body.appendChild(a); a.click(); setTimeout(()=>document.body.removeChild(a),1000);
+  postAction('verifyLoginCode',{email,code}).then(res=>{
+    alert(res.message);
+    if(res.success){
+      currentEmail = email;
+      document.getElementById('loginDiv').classList.add('hidden');
+      document.getElementById('profileDiv').classList.remove('hidden');
+      document.getElementById('invoiceDiv').classList.remove('hidden');
     }
-  } else toast(res.message||'Failed to create invoice');
+  });
 }
 
-/* --- helpers --- */
-function escapeHtml(s){ if(!s&&s!==0) return''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function escapeAttr(s){ return escapeHtml(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+/* ------------------- Profile ------------------- */
+function saveProfile(){
+  const profile = {
+    shopName: document.getElementById('shopName').value,
+    contact: document.getElementById('contact').value,
+    address: document.getElementById('address').value,
+    currency: document.getElementById('currency').value,
+    signature: document.getElementById('signature').value
+  };
+  postAction('saveProfile',{email:currentEmail,profile}).then(res=>{
+    alert(res.message);
+  });
+}
+
+function loadProfile(){
+  postAction('loadProfile',{email:currentEmail}).then(res=>{
+    if(res.success){
+      const p = res.profile;
+      document.getElementById('shopName').value=p.shopName||'';
+      document.getElementById('contact').value=p.contact||'';
+      document.getElementById('address').value=p.address||'';
+      document.getElementById('currency').value=p.currency||'';
+      document.getElementById('signature').value=p.signature||'';
+      alert('Profile loaded');
+    } else { alert(res.message); }
+  });
+}
+
+/* ------------------- Invoice ------------------- */
+function addItemRow(){
+  const tbody = document.querySelector('#itemsTable tbody');
+  const idx = tbody.rows.length+1;
+  const row = tbody.insertRow();
+  row.innerHTML = `<td class="num">${idx}</td>
+    <td><input type="text" class="iname"></td>
+    <td><input type="number" class="iqty" value="1"></td>
+    <td><input type="number" class="irate" value="0"></td>
+    <td><input type="number" class="idiscount" value="0"></td>
+    <td>
+      <select class="idisctype">
+        <option value="amount">Amount</option>
+        <option value="percent">Percent</option>
+      </select>
+    </td>
+    <td><button onclick="this.parentElement.parentElement.remove()">Remove</button></td>`;
+}
+
+function getInvoiceItems(){
+  const tbody = document.querySelector('#itemsTable tbody');
+  const items=[];
+  for(let r=0;r<tbody.rows.length;r++){
+    const row = tbody.rows[r];
+    items.push({
+      name: row.querySelector('.iname').value,
+      qty: Number(row.querySelector('.iqty').value),
+      rate: Number(row.querySelector('.irate').value),
+      discount: Number(row.querySelector('.idiscount').value),
+      discountType: row.querySelector('.idisctype').value
+    });
+  }
+  return items;
+}
+
+function previewInvoice(){
+  const invoiceObj = {
+    customerName: document.getElementById('customerName').value,
+    items: getInvoiceItems()
+  };
+  postAction('getInvoiceHtml',{email:currentEmail,invoiceObj}).then(res=>{
+    if(res.success){
+      document.getElementById('invoicePreview').innerHTML=res.html;
+    } else { alert(res.message); }
+  });
+}
+
+function generateInvoicePDF(){
+  const invoiceObj = {
+    customerName: document.getElementById('customerName').value,
+    items: getInvoiceItems()
+  };
+  postAction('generateInvoicePDF',{email:currentEmail,invoiceObj}).then(res=>{
+    if(res.success){
+      const link = document.createElement('a');
+      link.href=res.downloadUrl;
+      link.target='_blank';
+      link.download=res.invoiceId+'.pdf';
+      link.textContent='Download PDF: '+res.invoiceId;
+      document.getElementById('invoicePreview').appendChild(link);
+      alert('PDF Generated');
+    } else { alert(res.message); }
+  });
+}
 </script>
 </body>
 </html>
