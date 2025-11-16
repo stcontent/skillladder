@@ -1,0 +1,333 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>QuickBill (External)</title>
+  <style>
+    :root{--bg:#f7f7f7;--card:#fff;--accent:#111;--muted:#666}
+    body{font-family:Inter,Arial,Helvetica,sans-serif;background:var(--bg);margin:0;padding:16px;box-sizing:border-box}
+    .container{max-width:980px;margin:0 auto}
+    .card{background:var(--card);padding:14px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,0.04);margin:12px 0}
+    .topbar{display:flex;justify-content:space-between;align-items:center;gap:12px}
+    .small{font-size:13px;color:var(--muted)}
+    input,select,textarea{padding:10px;border:1px solid #e6e6e6;border-radius:8px;width:100%;box-sizing:border-box;font-size:14px}
+    button{padding:8px 12px;border:0;background:var(--accent);color:#fff;border-radius:8px;cursor:pointer;font-size:14px}
+    .row{display:flex;gap:12px}
+    .row > *{flex:1}
+    table{width:100%;border-collapse:collapse;margin-top:12px}
+    table td,table th{border:1px solid #eee;padding:8px;font-size:14px}
+    .right{text-align:right}
+    .muted{color:var(--muted)}
+    .toast{padding:8px 12px;background:#222;color:#fff;border-radius:8px;display:inline-block}
+    .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+    .scrollable{overflow:auto;-webkit-overflow-scrolling:touch}
+    @media (max-width:640px){
+      .row{flex-direction:column}
+      .topbar{flex-direction:column;align-items:flex-start;gap:8px}
+      table.inv, table#itemsTable { display:block; width:100%; }
+      table#itemsTable thead{display:none}
+      table#itemsTable tbody, table#itemsTable tr { display:block; width:100%; margin-bottom:8px; border:1px solid #eee; border-radius:8px; padding:8px; box-sizing:border-box; background:#fff; }
+      table#itemsTable td { display:block; border:0; padding:6px 0; }
+      table#itemsTable td .label { display:block; font-size:12px; color:var(--muted); margin-bottom:6px; }
+      table#itemsTable td input, table#itemsTable td select { width:100%; }
+      #previewFrame { height:480px; }
+    }
+    @media (min-width:641px){
+      .scrollable { overflow:auto; }
+      table#itemsTable td input, table#itemsTable td select { width:100%; box-sizing:border-box; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card topbar">
+      <div>
+        <strong style="font-size:18px">QuickBill</strong><div class="small">External client (uses Apps Script API)</div>
+      </div>
+      <div id="authArea"></div>
+    </div>
+
+    <div id="main" class="card">
+      <div id="landingView">
+        <div class="row">
+          <div>
+            <h3>Signup</h3>
+            <input id="signupEmail" placeholder="Enter your email" autocomplete="email">
+            <div class="actions">
+              <button onclick="sendSignupCode()">Send Signup Code</button>
+            </div>
+            <div id="signupArea" style="margin-top:8px"></div>
+          </div>
+          <div>
+            <h3>Login</h3>
+            <input id="loginEmail" placeholder="Enter your email" autocomplete="email">
+            <div class="actions">
+              <button onclick="sendLoginCode()">Send Login Code</button>
+            </div>
+            <div id="loginArea" style="margin-top:8px"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="appView" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+          <div><strong>Dashboard</strong><div class="small">Logged in as <span id="meEmail"></span></div></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button onclick="showProfile()">Profile</button>
+            <button onclick="showNewInvoice()">Create Invoice</button>
+            <button onclick="logout()">Logout</button>
+          </div>
+        </div>
+
+        <div id="contentArea" style="margin-top:12px"></div>
+      </div>
+    </div>
+
+    <div id="message" style="position:fixed;right:18px;bottom:18px;display:none"></div>
+  </div>
+
+<script>
+  // ----- CONFIG: set your deployed Apps Script Web App URL here -----
+  // Example: https://script.google.com/macros/s/AKfycbx.../exec
+  const API_BASE = 'PASTE_YOUR_WEB_APP_URL_HERE';
+
+  function apiFetch(action, body) {
+    // body can be object (will be sent as JSON)
+    body = body || {};
+    body.action = action;
+    // Use POST as default
+    return fetch(API_BASE, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      mode: 'cors'
+    }).then(function(r){ return r.json(); });
+  }
+
+  function toast(msg,timeout){
+    var d = document.getElementById('message');
+    d.innerHTML = '<div class="toast">'+msg+'</div>';
+    d.style.display = 'block';
+    if (timeout===undefined) timeout = 3000;
+    setTimeout(function(){ d.style.display='none'; }, timeout);
+  }
+
+  function setAuthArea(){
+    var auth = document.getElementById('authArea');
+    var me = localStorage.getItem('qb_email');
+    if (me){
+      auth.innerHTML = '<div class="small">'+me+' <button onclick="logout()" style="margin-left:8px;padding:6px 8px;border-radius:6px">Logout</button></div>';
+      document.getElementById('landingView').style.display='none';
+      document.getElementById('appView').style.display='block';
+      document.getElementById('meEmail').innerText = me;
+    } else {
+      auth.innerHTML = '';
+      document.getElementById('landingView').style.display='block';
+      document.getElementById('appView').style.display='none';
+    }
+  }
+  setAuthArea();
+
+  /* Signup */
+  function sendSignupCode(){
+    var email = document.getElementById('signupEmail').value.trim();
+    if (!email) return toast('Enter email');
+    apiFetch('sendSignupCode', { email: email }).then(function(res){
+      if (res.success){
+        document.getElementById('signupArea').innerHTML = '<div class="row"><input id="signupCode" placeholder="Enter signup code"><button onclick="verifySignupCode()">Verify</button></div>';
+        toast(res.message);
+      } else toast(res.message);
+    }).catch(function(err){ toast('Network error'); console.error(err); });
+  }
+  function verifySignupCode(){
+    var email = document.getElementById('signupEmail').value.trim();
+    var code = document.getElementById('signupCode').value.trim();
+    if (!code) return toast('Enter code');
+    apiFetch('verifySignupCode', { email: email, code: code }).then(function(res){
+      if (res.success){
+        toast('Signup complete');
+        localStorage.setItem('qb_email', email);
+        setAuthArea();
+      } else toast(res.message);
+    }).catch(function(err){ toast('Network error'); console.error(err); });
+  }
+
+  /* Login */
+  function sendLoginCode(){
+    var email = document.getElementById('loginEmail').value.trim();
+    if (!email) return toast('Enter email');
+    apiFetch('sendLoginCode', { email: email }).then(function(res){
+      if (res.success){
+        document.getElementById('loginArea').innerHTML = '<div class="row"><input id="loginCode" placeholder="Enter login code"><button onclick="verifyLoginCode()">Verify</button></div>';
+        toast(res.message);
+      } else toast(res.message);
+    }).catch(function(err){ toast('Network error'); console.error(err); });
+  }
+  function verifyLoginCode(){
+    var email = document.getElementById('loginEmail').value.trim();
+    var code = document.getElementById('loginCode').value.trim();
+    if (!code) return toast('Enter code');
+    apiFetch('verifyLoginCode', { email: email, code: code }).then(function(res){
+      if (res.success){
+        localStorage.setItem('qb_email', email);
+        setAuthArea();
+        toast('Login successful');
+      } else toast(res.message);
+    }).catch(function(err){ toast('Network error'); console.error(err); });
+  }
+
+  function logout(){
+    localStorage.removeItem('qb_email');
+    setAuthArea();
+    toast('Logged out');
+  }
+
+  /* Profile */
+  function showProfile(){
+    var email = localStorage.getItem('qb_email'); if (!email) return toast('Not logged in');
+    var content = document.getElementById('contentArea');
+    content.innerHTML = '<h3>Profile</h3><div class="row"><div><input id="p_shop" placeholder="Shop Name"></div><div><input id="p_contact" placeholder="Contact"></div></div><div style="margin-top:8px"><textarea id="p_address" placeholder="Address" rows="3"></textarea></div><div class="row" style="margin-top:8px"><div><input id="p_currency" placeholder="Currency (e.g. PKR or Rs)"></div><div><input id="p_signature" placeholder="Signature text"></div></div><div class="actions" style="margin-top:8px"><button onclick="saveProfile()">Save Profile</button></div><div id="profileStatus" style="margin-top:8px"></div>';
+    apiFetch('loadProfile', { email: email }).then(function(res){
+      if (res.success){
+        var p = res.profile;
+        document.getElementById('p_shop').value = p.shopName||'';
+        document.getElementById('p_contact').value = p.contact||'';
+        document.getElementById('p_address').value = p.address||'';
+        document.getElementById('p_currency').value = p.currency||'';
+        document.getElementById('p_signature').value = p.signature||'';
+      }
+    }).catch(function(err){ toast('Network error'); console.error(err); });
+  }
+  function saveProfile(){
+    var email = localStorage.getItem('qb_email'); if (!email) return toast('Not logged in');
+    var profile = {
+      shopName: document.getElementById('p_shop').value.trim(),
+      contact: document.getElementById('p_contact').value.trim(),
+      address: document.getElementById('p_address').value.trim(),
+      currency: document.getElementById('p_currency').value.trim(),
+      signature: document.getElementById('p_signature').value.trim()
+    };
+    apiFetch('saveProfile', { email: email, profile: profile }).then(function(res){
+      if (res.success) toast('Profile saved'); else toast(res.message);
+    }).catch(function(err){ toast('Network error'); console.error(err); });
+  }
+
+  /* Invoice UI */
+  function showNewInvoice(){
+    var email = localStorage.getItem('qb_email'); if (!email) return toast('Not logged in');
+    var content = document.getElementById('contentArea');
+    content.innerHTML = '<h3>New Invoice</h3><div><input id="custName" placeholder="Customer Name"></div><div style="margin-top:8px" class="actions"><button onclick="addItemRow()">Add Item</button><button onclick="previewInvoice()">Preview</button><button onclick="generateInvoice()">Generate PDF</button></div><div id="itemsWrap" style="margin-top:12px" class="scrollable"><table id="itemsTable"><thead><tr><th style="width:6%">#</th><th>Item</th><th style="width:12%">Qty</th><th style="width:12%">Rate</th><th style="width:12%">Discount</th><th style="width:12%">Type</th><th style="width:10%">Action</th></tr></thead><tbody></tbody></table></div><div id="previewArea" style="margin-top:12px"></div><div id="invoiceResult" style="margin-top:10px"></div>';
+    addItemRow();
+  }
+
+  function addItemRow(item){
+    var tbody = document.querySelector('#itemsTable tbody');
+    var idx = tbody.rows.length + 1;
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td class="num"><div class="label">#</div><div>' + idx + '</div></td>'
+      +'<td><div class="label">Item</div><input class="it_name" value="'+(item?escapeHtml(item.name):'')+'"></td>'
+      +'<td><div class="label">Qty</div><input class="it_qty" type="number" min="0" value="'+(item?item.qty:1)+'"></td>'
+      +'<td><div class="label">Rate</div><input class="it_rate" type="number" min="0" step="0.01" value="'+(item?item.rate:0)+'"></td>'
+      +'<td><div class="label">Discount</div><input class="it_disc" type="number" min="0" step="0.01" value="'+(item?item.discount:0)+'"></td>'
+      +'<td><div class="label">Type</div><select class="it_dtype"><option value="flat">Flat</option><option value="percent">Percent</option></select></td>'
+      +'<td><div class="label">Action</div><button type="button" onclick="removeItem(this)">Remove</button></td>';
+    tbody.appendChild(tr);
+    if (item && item.discountType) tr.querySelector('.it_dtype').value = item.discountType;
+  }
+
+  function removeItem(btn){
+    var tr = btn.closest('tr');
+    if (!tr) return;
+    tr.parentNode.removeChild(tr);
+    rebuildIdx();
+  }
+  function rebuildIdx(){
+    var rows = document.querySelectorAll('#itemsTable tbody tr');
+    rows.forEach(function(r,i){ r.querySelector('.num div:last-child').innerText = i+1; });
+  }
+
+  /* Preview */
+  function previewInvoice(){
+    var email = localStorage.getItem('qb_email'); if (!email) return toast('Not logged in');
+    var cust = document.getElementById('custName').value.trim();
+    if (!cust) return toast('Enter customer name');
+    var rows = document.querySelectorAll('#itemsTable tbody tr');
+    if (!rows.length) return toast('Add at least one item');
+    var items = [];
+    for (var i=0;i<rows.length;i++){
+      var r = rows[i];
+      var name = r.querySelector('.it_name').value.trim();
+      var qty = Number(r.querySelector('.it_qty').value)||0;
+      var rate = Number(r.querySelector('.it_rate').value)||0;
+      var disc = Number(r.querySelector('.it_disc').value)||0;
+      var dtype = r.querySelector('.it_dtype').value;
+      if (!name) return toast('Item name required');
+      items.push({name:name,qty:qty,rate:rate,discount:disc,discountType:dtype});
+    }
+    var invoiceObj = {customerName: cust, items: items};
+    apiFetch('getInvoiceHtml', { email: email, invoiceObj: invoiceObj }).then(function(res){
+      if (res.success){
+        var previewArea = document.getElementById('previewArea');
+        previewArea.innerHTML = '<div style="border:1px solid #eee;border-radius:8px;overflow:hidden"><iframe id="previewFrame" srcdoc="'+escapeAttr(res.html)+'" style="width:100%;height:680px;border:0;"></iframe></div>';
+        toast('Preview generated');
+      } else toast(res.message || 'Failed to render preview');
+    }).catch(function(err){ toast('Network error'); console.error(err); });
+  }
+
+  /* Generate: auto-download on desktop, show ID on mobile */
+  function generateInvoice(){
+    var email = localStorage.getItem('qb_email'); if (!email) return toast('Not logged in');
+    var cust = document.getElementById('custName').value.trim();
+    if (!cust) return toast('Enter customer name');
+    var rows = document.querySelectorAll('#itemsTable tbody tr');
+    if (!rows.length) return toast('Add at least one item');
+    var items = [];
+    for (var i=0;i<rows.length;i++){
+      var r = rows[i];
+      var name = r.querySelector('.it_name').value.trim();
+      var qty = Number(r.querySelector('.it_qty').value)||0;
+      var rate = Number(r.querySelector('.it_rate').value)||0;
+      var disc = Number(r.querySelector('.it_disc').value)||0;
+      var dtype = r.querySelector('.it_dtype').value;
+      if (!name) return toast('Item name required');
+      items.push({name:name,qty:qty,rate:rate,discount:disc,discountType:dtype});
+    }
+    var invoiceObj = {customerName: cust, items: items};
+    apiFetch('generateInvoicePDF', { email: email, invoiceObj: invoiceObj }).then(function(res){
+      if (res.success){
+        var isMobile = /Mobi|Android|iPhone|iPad/.test(navigator.userAgent) || window.innerWidth <= 800;
+        document.getElementById('invoiceResult').innerText = 'Invoice created — ID: ' + res.invoiceId;
+        toast('Invoice created');
+        if (!isMobile && res.downloadUrl) {
+          // attempt automatic download
+          try {
+            var a = document.createElement('a');
+            a.href = res.downloadUrl;
+            a.download = 'invoice_' + res.invoiceId + '.pdf';
+            a.style.display = 'none';
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(function(){ document.body.removeChild(a); }, 1000);
+          } catch (e) {
+            if (res.url) window.open(res.url, '_blank');
+          }
+        } else {
+          // mobile: do nothing (ID shown). Optionally provide button to open preview:
+          // show small open button
+          var invoiceArea = document.getElementById('invoiceResult');
+          var openBtn = document.createElement('button');
+          openBtn.textContent = 'Open PDF';
+          openBtn.style.marginLeft = '8px';
+          openBtn.onclick = function(){ if (res.url) window.open(res.url, '_blank'); };
+          invoiceArea.appendChild(openBtn);
+        }
+      } else toast(res.message || 'Failed to create invoice');
+    }).catch(function(err){ toast('Network error'); console.error(err); });
+  }
+
+  function escapeHtml(s){ if (!s && s !== 0) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function escapeAttr(s){ return escapeHtml(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+</script>
+</body>
+</html>
