@@ -88,9 +88,76 @@
   </div>
 
 <script>
-  // ========== CONFIG: set your deployed Apps Script web app URL here ==========
-  const APPSCRIPT_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxUaDpqVGqX8DhW1RnRUDJNoKmUe3gIBp0tt3CvKkbOPJzcJ34kLm76ED2Om-ve8C97sQ/exec';
-  // ==========================================================================
+  /**
+   * IMPORTANT: This section replaces the native google.script.run
+   * to allow the HTML file to call Apps Script functions from an external server.
+   * YOU MUST DEPLOY Code.gs as an API Executable and replace the deploymentId.
+   */
+  const setupExternalAppsScriptRunner = () => {
+    // !!! USER MUST REPLACE THIS WITH THEIR DEPLOYMENT ID !!!
+    const deploymentId = 'AKfycbxUaDpqVGqX8DhW1RnRUDJNoKmUe3gIBp0tt3CvKkbOPJzcJ34kLm76ED2Om-ve8C97sQ';
+    const APPS_SCRIPT_URL = `https://script.google.com/macros/s/${deploymentId}/exec`;
+
+    if (deploymentId.includes('REPLACE_THIS')) {
+        console.warn("WARNING: APPS_SCRIPT_URL is a placeholder. You must deploy your Code.gs as an API Executable and replace 'deploymentId' above for this app to work.");
+    }
+    
+    const functionNames = [
+        'sendSignupCode', 'verifySignupCode', 'sendLoginCode', 'verifyLoginCode',
+        'saveProfile', 'loadProfile', 'getInvoiceHtml', 'generateInvoicePDF',
+        'getAccountRow', 'getLastInvoiceLink'
+    ];
+
+    // The polyfill for google.script.run
+    const externalScriptRunner = {
+        withSuccessHandler: function(successHandler) {
+            const proxy = {};
+            
+            // Create a function proxy for each Apps Script function
+            functionNames.forEach(funcName => {
+                proxy[funcName] = function(...args) {
+                    // Send request to Apps Script Execution API
+                    fetch(APPS_SCRIPT_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            function: funcName,
+                            parameters: args
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(result => {
+                        // Execution API response handling
+                        if (result.response && result.response.result !== undefined) {
+                            successHandler(result.response.result);
+                        } else if (result.error) {
+                            console.error(`Apps Script Server Error for ${funcName}:`, result.error.message);
+                            toast(`Error: ${result.error.message || 'Server execution failed'}`);
+                        } else {
+                            console.error('Unexpected Apps Script Response Structure', result);
+                            toast(`Error: Unexpected response from ${funcName}`);
+                        }
+                    })
+                    .catch(e => {
+                        console.error(`Network or Fetch Error for ${funcName}:`, e);
+                        toast(`Network Error: ${e.message}`);
+                    });
+                };
+            });
+            
+            return proxy;
+        }
+    };
+    
+    // Attach the polyfill to the global scope
+    window.google = window.google || {};
+    window.google.script = window.google.script || {};
+    window.google.script.run = externalScriptRunner;
+  };
+
+  setupExternalAppsScriptRunner();
+
+  // --- Start of Original Script Logic ---
 
   function toast(msg,timeout){
     var d = document.getElementById('message');
@@ -116,80 +183,52 @@
   }
   setAuthArea();
 
-  /* ----------------- RPC wrapper for external calls ----------------- */
-  async function rpc(func, args){
-    try {
-      var resp = await fetch(APPSCRIPT_WEBAPP_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ func: func, args: args || [] })
-      });
-      if (!resp.ok) {
-        return { success: false, message: 'Server error: ' + resp.status + ' ' + resp.statusText };
-      }
-      var data = await resp.json();
-      return data;
-    } catch (err) {
-      return { success: false, message: err.message || String(err) };
-    }
-  }
-
-  // Convenience wrappers (map to server functions)
-  function sendSignupCodeRpc(email){ return rpc('sendSignupCode', [email]); }
-  function verifySignupCodeRpc(email, code){ return rpc('verifySignupCode', [email, code]); }
-  function sendLoginCodeRpc(email){ return rpc('sendLoginCode', [email]); }
-  function verifyLoginCodeRpc(email, code){ return rpc('verifyLoginCode', [email, code]); }
-  function loadProfileRpc(email){ return rpc('loadProfile', [email]); }
-  function saveProfileRpc(email, profile){ return rpc('saveProfile', [email, profile]); }
-  function getInvoiceHtmlRpc(email, invoiceObj){ return rpc('getInvoiceHtml', [email, invoiceObj]); }
-  function generateInvoicePDFRpc(email, invoiceObj){ return rpc('generateInvoicePDF', [email, invoiceObj]); }
-
-  /* ----------------- Signup ----------------- */
+  /* Signup */
   function sendSignupCode(){
     var email = document.getElementById('signupEmail').value.trim();
     if (!email) return toast('Enter email');
-    sendSignupCodeRpc(email).then(function(res){
+    google.script.run.withSuccessHandler(function(res){
       if (res.success){
         document.getElementById('signupArea').innerHTML = '<div class="row"><input id="signupCode" placeholder="Enter signup code"><button onclick="verifySignupCode()">Verify</button></div>';
         toast(res.message);
       } else toast(res.message);
-    });
+    }).sendSignupCode(email);
   }
   function verifySignupCode(){
     var email = document.getElementById('signupEmail').value.trim();
     var code = document.getElementById('signupCode').value.trim();
     if (!code) return toast('Enter code');
-    verifySignupCodeRpc(email, code).then(function(res){
+    google.script.run.withSuccessHandler(function(res){
       if (res.success){
         toast('Signup complete');
         localStorage.setItem('qb_email', email);
         setAuthArea();
       } else toast(res.message);
-    });
+    }).verifySignupCode(email, code);
   }
 
-  /* ----------------- Login ----------------- */
+  /* Login */
   function sendLoginCode(){
     var email = document.getElementById('loginEmail').value.trim();
     if (!email) return toast('Enter email');
-    sendLoginCodeRpc(email).then(function(res){
+    google.script.run.withSuccessHandler(function(res){
       if (res.success){
         document.getElementById('loginArea').innerHTML = '<div class="row"><input id="loginCode" placeholder="Enter login code"><button onclick="verifyLoginCode()">Verify</button></div>';
         toast(res.message);
       } else toast(res.message);
-    });
+    }).sendLoginCode(email);
   }
   function verifyLoginCode(){
     var email = document.getElementById('loginEmail').value.trim();
     var code = document.getElementById('loginCode').value.trim();
     if (!code) return toast('Enter code');
-    verifyLoginCodeRpc(email, code).then(function(res){
+    google.script.run.withSuccessHandler(function(res){
       if (res.success){
         localStorage.setItem('qb_email', email);
         setAuthArea();
         toast('Login successful');
       } else toast(res.message);
-    });
+    }).verifyLoginCode(email, code);
   }
 
   function logout(){
@@ -198,23 +237,21 @@
     toast('Logged out');
   }
 
-  /* ----------------- Profile ----------------- */
+  /* Profile */
   function showProfile(){
     var email = localStorage.getItem('qb_email'); if (!email) return toast('Not logged in');
     var content = document.getElementById('contentArea');
     content.innerHTML = '<h3>Profile</h3><div class="row"><div><input id="p_shop" placeholder="Shop Name"></div><div><input id="p_contact" placeholder="Contact"></div></div><div style="margin-top:8px"><textarea id="p_address" placeholder="Address" rows="3"></textarea></div><div class="row" style="margin-top:8px"><div><input id="p_currency" placeholder="Currency (e.g. USD or $ or any other)"></div><div><input id="p_signature" placeholder="Signature text"></div></div><div class="actions" style="margin-top:8px"><button onclick="saveProfile()">Save Profile</button></div><div id="profileStatus" style="margin-top:8px"></div>';
-    loadProfileRpc(email).then(function(res){
+    google.script.run.withSuccessHandler(function(res){
       if (res.success){
-        var p = res.profile || {};
+        var p = res.profile;
         document.getElementById('p_shop').value = p.shopName||'';
         document.getElementById('p_contact').value = p.contact||'';
         document.getElementById('p_address').value = p.address||'';
         document.getElementById('p_currency').value = p.currency||'';
         document.getElementById('p_signature').value = p.signature||'';
-      } else {
-        // No profile yet is fine; keep fields empty
       }
-    });
+    }).loadProfile(email);
   }
   function saveProfile(){
     var email = localStorage.getItem('qb_email'); if (!email) return toast('Not logged in');
@@ -225,12 +262,12 @@
       currency: document.getElementById('p_currency').value.trim(),
       signature: document.getElementById('p_signature').value.trim()
     };
-    saveProfileRpc(email, profile).then(function(res){
+    google.script.run.withSuccessHandler(function(res){
       if (res.success) toast('Profile saved'); else toast(res.message);
-    });
+    }).saveProfile(email, profile);
   }
 
-  /* ----------------- Invoicing UI ----------------- */
+  /* Invoicing UI */
   function showNewInvoice(){
     var email = localStorage.getItem('qb_email'); if (!email) return toast('Not logged in');
     var content = document.getElementById('contentArea');
@@ -266,7 +303,7 @@
     rows.forEach(function(r,i){ r.querySelector('.num div:last-child').innerText = i+1; });
   }
 
-  /* ----------------- Preview ----------------- */
+  /* Preview */
   function previewInvoice(){
     var email = localStorage.getItem('qb_email'); if (!email) return toast('Not logged in');
     var cust = document.getElementById('custName').value.trim();
@@ -285,7 +322,7 @@
       items.push({name:name,qty:qty,rate:rate,discount:disc,discountType:dtype});
     }
     var invoiceObj = {customerName: cust, items: items};
-    getInvoiceHtmlRpc(email, invoiceObj).then(function(res){
+    google.script.run.withSuccessHandler(function(res){
       if (res.success){
         var previewArea = document.getElementById('previewArea');
         previewArea.innerHTML = '<div style="border:1px solid #eee;border-radius:8px;overflow:hidden"><iframe id="previewFrame" srcdoc="'+escapeAttr(res.html)+'" style="width:100%;height:680px;border:0;"></iframe></div>';
@@ -293,10 +330,10 @@
       } else {
         toast(res.message || 'Failed to render preview');
       }
-    });
+    }).getInvoiceHtml(email, invoiceObj);
   }
 
-  /* ----------------- Generate: auto-download on desktop, show ID on mobile ----------------- */
+  /* Generate: auto-download on desktop, show ID on mobile */
   function generateInvoice(){
     var email = localStorage.getItem('qb_email'); if (!email) return toast('Not logged in');
     var cust = document.getElementById('custName').value.trim();
@@ -315,7 +352,7 @@
       items.push({name:name,qty:qty,rate:rate,discount:disc,discountType:dtype});
     }
     var invoiceObj = {customerName: cust, items: items};
-    generateInvoicePDFRpc(email, invoiceObj).then(function(res){
+    google.script.run.withSuccessHandler(function(res){
       if (res.success){
         var isMobile = /Mobi|Android|iPhone|iPad/.test(navigator.userAgent) || window.innerWidth <= 800;
         document.getElementById('invoiceResult').innerText = 'Invoice created — ID: ' + res.invoiceId;
@@ -325,12 +362,14 @@
           try {
             var a = document.createElement('a');
             a.href = res.downloadUrl;
+            // Attempt to force download; set download attribute if same origin — may be ignored for drive links
             a.download = 'invoice_' + res.invoiceId + '.pdf';
             a.style.display = 'none';
             document.body.appendChild(a);
             a.click();
             setTimeout(function(){ document.body.removeChild(a); }, 1000);
           } catch (e) {
+            // fallback: open preview link in new tab
             if (res.url) window.open(res.url, '_blank');
           }
         } else {
@@ -339,7 +378,7 @@
       } else {
         toast(res.message || 'Failed to create invoice');
       }
-    });
+    }).generateInvoicePDF(email, invoiceObj);
   }
 
   /* helpers */
