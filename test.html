@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Apps Script Connectivity Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f4; }
+        .container { max-width: 400px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        input, button { padding: 10px; margin-top: 10px; width: 100%; box-sizing: border-box; border-radius: 4px; border: 1px solid #ccc; font-size: 16px; }
+        button { background-color: #007bff; color: white; cursor: pointer; border: none; transition: background-color 0.3s; }
+        button:hover { background-color: #0056b3; }
+        #result { margin-top: 20px; padding: 15px; border: 2px dashed #007bff; background-color: #e0f7ff; border-radius: 4px; min-height: 50px; text-align: center; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Apps Script API Tester</h2>
+    <p>Enter a name and click the button to send a request to your deployed `Code.gs`.</p>
+    <input type="text" id="nameInput" placeholder="Enter your name (e.g., Jane)">
+    <button onclick="testGreeting()">Send Request</button>
+    <div id="result">Waiting for script execution...</div>
+</div>
+
+<script>
+    // --- APPS SCRIPT POLYFILL ---
+    const setupExternalAppsScriptRunner = () => {
+        // !!! MANDATORY: PASTE YOUR DEPLOYMENT ID HERE !!!
+        const deploymentId = 'AKfycbwZUrYXQWRs8Vnqu3bCUuXFh8FFKaloxPA19nM_BYfKFP2BHrMW7AbqIuFkFO628Yv-yQ'; 
+        
+        // This is the base URL for the Web App execution
+        const BASE_URL = `https://script.google.com/macros/s/${deploymentId}/exec`;
+
+        if (deploymentId.includes('PASTE_YOUR_NEW_DEPLOYMENT_ID_HERE')) {
+            console.error("CONFIGURATION ERROR: Please update the 'deploymentId' variable in the script tag.");
+        }
+
+        const externalScriptRunner = {
+            withSuccessHandler: function(successHandler) {
+                const proxy = {};
+                
+                // We only need one function for this test: getGreeting
+                proxy.getGreeting = function(...args) {
+                    const funcName = 'getGreeting';
+                    const fetchUrl = BASE_URL + `?function=${funcName}`;
+
+                    fetch(fetchUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            parameters: args
+                        })
+                    })
+                    .then(response => {
+                        // Check for network errors before trying to parse JSON
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! Status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(result => {
+                        // Apps Script success responses wrap the return value in 'result'
+                        if (result.result !== undefined) {
+                            successHandler(result.result);
+                        } else if (result.error) {
+                            document.getElementById('result').innerText = `Error (Script): ${result.error.message}`;
+                            console.error('Apps Script Server Error:', result.error);
+                        } else {
+                            // Handle cases where result is direct (less common but safe)
+                            successHandler(result);
+                        }
+                    })
+                    .catch(e => {
+                        // Catches network/CORS failures
+                        document.getElementById('result').innerText = `NETWORK ERROR: Failed to fetch. Check console for details (Deployment ID or CORS)`;
+                        console.error('Fetch Error:', e);
+                    });
+                };
+                
+                return proxy;
+            }
+        };
+        
+        window.google = window.google || {};
+        window.google.script = window.google.script || {};
+        window.google.script.run = externalScriptRunner;
+    };
+
+    setupExternalAppsScriptRunner();
+
+    // --- CLIENT-SIDE LOGIC ---
+
+    function testGreeting() {
+        const name = document.getElementById('nameInput').value.trim() || 'Guest';
+        document.getElementById('result').innerHTML = 'Sending request to server...';
+
+        // Calls the polyfilled google.script.run
+        google.script.run
+            .withSuccessHandler(function(res) {
+                if (res.success) {
+                    document.getElementById('result').innerHTML = `<strong>Success!</strong> ${res.message}`;
+                } else {
+                    document.getElementById('result').innerHTML = `<strong>Error:</strong> ${res.message}`;
+                }
+            })
+            .getGreeting(name);
+    }
+</script>
+
+</body>
+</html>
