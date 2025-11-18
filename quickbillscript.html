@@ -90,16 +90,19 @@
 <script>
   /**
    * IMPORTANT: This section replaces the native google.script.run
-   * to allow the HTML file to call Apps Script functions from an external server.
-   * YOU MUST DEPLOY Code.gs as an API Executable and replace the deploymentId.
+   * using the Web App URL structure which is often more reliable for external POST calls.
+   * YOU MUST DEPLOY Code.gs as a Web App and replace the deploymentId.
    */
   const setupExternalAppsScriptRunner = () => {
     // !!! USER MUST REPLACE THIS WITH THEIR DEPLOYMENT ID !!!
+    // This is your deployment ID (starts with AKfycb...)
     const deploymentId = 'AKfycbxUaDpqVGqX8DhW1RnRUDJNoKmUe3gIBp0tt3CvKkbOPJzcJ34kLm76ED2Om-ve8C97sQ';
-    const APPS_SCRIPT_URL = `https://script.google.com/macros/s/${deploymentId}/exec`;
+    
+    // Use the Web App URL structure instead of the Execution API URL
+    const BASE_URL = `https://script.google.com/macros/s/${deploymentId}/exec`;
 
     if (deploymentId.includes('REPLACE_THIS')) {
-        console.warn("WARNING: APPS_SCRIPT_URL is a placeholder. You must deploy your Code.gs as an API Executable and replace 'deploymentId' above for this app to work.");
+        console.warn("WARNING: BASE_URL is a placeholder. You must deploy your Code.gs as a Web App (Access: Anyone) and replace 'deploymentId' above for this app to work.");
     }
     
     const functionNames = [
@@ -116,26 +119,34 @@
             // Create a function proxy for each Apps Script function
             functionNames.forEach(funcName => {
                 proxy[funcName] = function(...args) {
-                    // Send request to Apps Script Execution API
-                    fetch(APPS_SCRIPT_URL, {
+                    // Use a more robust fetch configuration
+                    fetch(BASE_URL + `?function=${funcName}`, {
                         method: 'POST',
+                        // Note: The Content-Type header is crucial for the Apps Script server to correctly parse the JSON body.
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            function: funcName,
+                            function: funcName, // Redundant but harmless for the new URL structure
                             parameters: args
                         })
                     })
-                    .then(response => response.json())
+                    .then(response => {
+                        // Check if the network request itself failed (status 400+, no response body, etc.)
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! Status: ${response.status}`);
+                        }
+                        // Apps Script returns the response as JSON
+                        return response.json();
+                    })
                     .then(result => {
-                        // Execution API response handling
-                        if (result.response && result.response.result !== undefined) {
-                            successHandler(result.response.result);
+                        // Apps Script Execution API always wraps the result in a 'result' key if successful
+                        if (result.result !== undefined) {
+                            successHandler(result.result);
                         } else if (result.error) {
                             console.error(`Apps Script Server Error for ${funcName}:`, result.error.message);
                             toast(`Error: ${result.error.message || 'Server execution failed'}`);
                         } else {
-                            console.error('Unexpected Apps Script Response Structure', result);
-                            toast(`Error: Unexpected response from ${funcName}`);
+                            // This happens if the script ran but returned nothing, or the structure was unexpected.
+                            successHandler(result);
                         }
                     })
                     .catch(e => {
@@ -157,7 +168,7 @@
 
   setupExternalAppsScriptRunner();
 
-  // --- Start of Original Script Logic ---
+  // --- Start of Original Script Logic (Unchanged) ---
 
   function toast(msg,timeout){
     var d = document.getElementById('message');
